@@ -1,0 +1,30 @@
+# BYO: never commit game data (paks, assets, text tables, binaries) - see README "For developers"
+*.pak
+*.ucas
+*.utoc
+*.uasset
+*.uexp
+*.ubulk
+*.umap
+*.locres
+*.usmap
+*.exe
+*.dll
+*.pdb
+
+# build output
+dist/
+native/build/
+native/out/
+native/build.log
+tools/bin/
+content/source/
+content/Wrc/Build/
+content/Wrc/Config/DefaultEngine.ini
+**/Binaries/
+**/Intermediate/
+**/Saved/
+**/DerivedDataCache/
+
+# local notes
+CLAUDE.md

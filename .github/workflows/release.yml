@@ -1,0 +1,96 @@
+# Builds WaCa Core and publishes a GitHub release when a version tag (v1.2.3) is pushed.
+# Runs on GitHub's Windows runner with the workflow's own token - no personal credentials anywhere.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (e.g. 0.5.2) - builds the zip as an artifact, no release"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: v
+        shell: pwsh
+        run: |
+          $v = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}".TrimStart("v") } else { "${{ inputs.version }}" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      # The native DLL is a UE4SS C++ mod: it builds against UE4SS's source at the pinned commit (8333063). Its
+      # Unreal submodule (Re-UE4SS/UEPseudo) is private - the repository secret UE4SS_SOURCE_TOKEN must be a GitHub
+      # token (contents: read) of an account linked to Epic Games that can see it.
+      - name: UE4SS source (the C++ mod SDK)
+        shell: pwsh
+        env:
+          UE4SS_SOURCE_TOKEN: ${{ secrets.UE4SS_SOURCE_TOKEN }}
+        run: |
+          if (-not $env:UE4SS_SOURCE_TOKEN) { throw "The secret UE4SS_SOURCE_TOKEN is missing (see the comment above this step)" }
+          $auth = "https://x-access-token:$($env:UE4SS_SOURCE_TOKEN)@github.com/"
+          git config --global url."$auth".insteadOf "git@github.com:"
+          git config --global --add url."$auth".insteadOf "https://github.com/"
+          git clone --filter=blob:none https://github.com/UE4SS-RE/RE-UE4SS.git tools/bin/src/RE-UE4SS
+          git -C tools/bin/src/RE-UE4SS checkout 8333063
+          git -C tools/bin/src/RE-UE4SS submodule update --init --recursive
+          if ($LASTEXITCODE -ne 0) { throw "submodules failed (is the token's account linked to Epic Games?)" }
+          # a fresh clone stamps every file "now", which would make ninja rebuild all of UE4SS over the cached build
+          # below: every source file gets one fixed old date instead (the cache's outputs are newer than it)
+          $old = [datetime]"2000-01-01"
+          Get-ChildItem tools/bin/src/RE-UE4SS -Recurse -File -Force | ForEach-Object { $_.LastWriteTime = $old }
+
+      # UE4SS's compiled build (about 2 GB), so a release compiles only the mod. Keyed by the UE4SS commit and our
+      # CMakeLists; a new UE4SS version or build setup starts a fresh cache. Only build output is cached, never the
+      # UE4SS source: caches on the default branch can be restored by pull requests from forks, and the source
+      # includes the private (Epic-licensed) UEPseudo.
+      # (the runner image too: a new image can bring a new compiler, and the cached CMake setup names the old one)
+      - name: Runner image
+        id: image
+        shell: pwsh
+        run: '"version=$env:ImageVersion" >> $env:GITHUB_OUTPUT'
+
+      - name: UE4SS build cache
+        uses: actions/cache@v4
+        with:
+          path: native/build
+          key: ue4ss-build-8333063-${{ steps.image.outputs.version }}-${{ hashFiles('native/CMakeLists.txt') }}-v1
+
+      - name: Native DLL
+        shell: cmd
+        run: native\build.bat
+
+      # (UE4SS itself is not shipped: players install "UE4SS for Warrior Cats" from Nexus - the same commit, 8333063)
+      - name: Package
+        shell: pwsh
+        run: ./tools/package.ps1 -Version ${{ steps.v.outputs.version }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WaCa-Core-${{ steps.v.outputs.version }}
+          path: dist/WaCa-Core-${{ steps.v.outputs.version }}.zip
+
+      - name: Release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $zip = "dist/WaCa-Core-${{ steps.v.outputs.version }}.zip"
+          gh release view "${{ github.ref_name }}" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            # the release already exists (published by hand): just (re)attach this build's zip
+            gh release upload "${{ github.ref_name }}" $zip --clobber
+          } else {
+            gh release create "${{ github.ref_name }}" $zip `
+              --title "WaCa Core ${{ steps.v.outputs.version }}" `
+              --notes "Needs UE4SS for Warrior Cats (Nexus Mods). Extract the zip into the game's folder - see README.md."
+          }
