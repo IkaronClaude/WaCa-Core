@@ -4,6 +4,8 @@
 //   SteamKeyboard|<description>|<existing text>      the answer arrives as the SteamTextInput event (steam.cpp)
 //   DevWatch|<address hex>|<length>  DevWatchRow|<table hex>|<row>|<offset hex>|<length>  DevUnwatch
 //   PressKey|<Unreal key name>                      a real key press + release posted to the game window (KeyAliases)
+//   HoldKey|<Unreal key name>|<1/0>                 the key held down / let go (a real key message) (dev.cpp)
+//   SwallowKey|<Unreal key name>|<1/0>              the game doesn't get that key (still KeyDown / KeyUp) (keys.cpp)
 //   DevPressKey|<vk hex>  DevStack|<label>                                        (dev.cpp)
 //   MouseLook|<0/1>|<yaw degrees per mouse unit>|<pitch degrees per mouse unit>   mouse look on / off (camera.cpp)
 //   CameraRelativeMove|<0/1>                         right / left strafe instead of turning the camera (camera.cpp)
@@ -18,6 +20,7 @@
 #include "prey.h"
 #include "hunt.h"
 #include "dev.h"
+#include "keys.h"
 #include "log.h"
 #include "steam.h"
 #include "text.h"
@@ -49,6 +52,8 @@ bool Run(const std::wstring& cmd) {
     else if (verb == L"DevUnwatch") dev::Unwatch();
     else if (verb == L"DevPressKey") dev::PressKey(Arg(cmd, 1));
     else if (verb == L"PressKey") dev::PressKeyNamed(Arg(cmd, 1));
+    else if (verb == L"HoldKey") dev::HoldKeyNamed(Arg(cmd, 1), Arg(cmd, 2) == L"1");
+    else if (verb == L"SwallowKey") keys::Swallow(dev::VirtualKey(Arg(cmd, 1)), Arg(cmd, 2) == L"1");
     else if (verb == L"DevStack") dev::Stack(Arg(cmd, 1));
     else if (verb == L"SteamKeyboard") steam::ShowKeyboard(Arg(cmd, 1), Arg(cmd, 2));
     else if (verb == L"HuntRoll") hunt::Configure(cmd);

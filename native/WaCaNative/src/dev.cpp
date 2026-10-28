@@ -187,4 +187,15 @@ void PressKey(const std::wstring& vkHex) {
     logx::Line(L"[dev] PressKey %X posted to window %p", vk, ctx.hwnd);
 }
 
+void HoldKeyNamed(const std::wstring& keyName, bool down) {
+    UINT vk = VirtualKey(keyName);
+    FindWindowCtx ctx;
+    EnumWindows(EnumProc, reinterpret_cast<LPARAM>(&ctx));
+    if (!vk || !ctx.hwnd) return;
+    UINT scan = MapVirtualKeyW(vk, MAPVK_VK_TO_VSC);
+    LPARAM lp = 1 | (static_cast<LPARAM>(scan) << 16);
+    if (!down) lp |= (1LL << 30) | (1LL << 31);
+    PostMessageW(ctx.hwnd, down ? WM_KEYDOWN : WM_KEYUP, vk, lp);
+}
+
 }  // namespace dev

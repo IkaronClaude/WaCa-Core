@@ -52,6 +52,16 @@ WaCa.On("GameSaved", function() ... end)   -- write yours when the game saves (q
                                             -- the game's own changes)
 ```
 
+## The character being played
+```lua
+WaCa.CurrentSlot()     -- "<save id>-<cat slot>": the save's own CurrentCatSlot (the cat picked in "Select Your Cat")
+WaCa.SaveCharacter()   -- that cat's record as the game last saved it (GameplayProgression, QuestProgression ...)
+WaCa.GameProgress()    -- its GameplayProgression
+WaCa.PlayerRank()      -- 1 Apprentice ... 4 Leader, and where from: 1 + the rank quests done, or a promotion just now
+WaCa.PlayerClan()      -- "RiverClan" ...: the cat in the world's, else the save's
+WaCa.Subscribe("player.rank", function(r) end)   -- { rank, name, slot, from } on load and on every promotion
+```
+
 ## Content files several mods can add to
 `WaCa.ReadContent(basePath, name)` reads one mod's file (`basePath`, e.g. `WaCaClanLife/config/clanevents.ini`) and
 then `<Mod>/content/<name>.ini` of every enabled mod on top:
@@ -97,8 +107,14 @@ hint icon.
 
 ## Native commands
 `WaCa.Command("Verb|arg|...")` sends a command to the native half (false when it's missing or the verb is unknown):
-`PressKey|Enter` (a real key press to the game window), `MouseLook|on|yaw|pitch`, `CameraRelativeMove|0/1`, and the
-others in `native/WaCaNative/src/commands.cpp`.
+`PressKey|Enter` (a real key press to the game window), `HoldKey|W|1` / `HoldKey|W|0` (a key held down / let go),
+`SwallowKey|Enter|1` (the game doesn't get that key - the mods still do - until `|0`), `MouseLook|on|yaw|pitch`,
+`CameraRelativeMove|0/1`, and the others in `native/WaCaNative/src/commands.cpp`.
+
+## Widgets on screen
+`WaCa.WidgetRect(widget)` -> left, top, right, bottom in desktop pixels (where it was last drawn - read natively: a
+widget's geometry can't be read from Lua), `WaCa.MouseOver(widget)` -> is the mouse over it, and its area.
+`WaCa.Latest(topic)` -> the latest value of a sticky topic.
 
 ## Rules of thumb
 - React to events; don't poll (no timers that check every second).

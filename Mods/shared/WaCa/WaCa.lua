@@ -90,6 +90,8 @@ end
 --     KeyDown(nil, keyName)                         a key / mouse button pressed ("Escape", "A", "LeftMouseButton"),
 --                                                   as it reaches the game window - before the game routes it, so
 --                                                   also while paused or when nothing is bound to it
+--     KeyUp(nil, keyName)                           a key let go (keyboard keys)
+--     MouseMove(nil, x, y)                          the mouse moved (window pixels; at most every 40 ms)
 --     GameSaved(nil, context)                       right after every game save (the save manager's native save,
 --                                                   whoever called it) - write per-save data (WaCa.SlotFile) here
 --     Started(nil)                                  the first event after WaCa.Ready(), on the game thread; the
@@ -339,6 +341,16 @@ function WaCa.Publish(topic, data, sticky)
     broadcast(topic, sticky == true, data)
 end
 
+-- the latest value of a sticky topic (this mod's own, else another mod's), or nil
+function WaCa.Latest(topic)
+    if stickyHere[topic] ~= nil then return stickyHere[topic] end
+    if not WaCaNative_LastBroadcast then return nil end
+    local payload = WaCaNative_LastBroadcast(topic)
+    if not payload then return nil end
+    local ok, msg = pcall(WaCa.JsonDecode, payload:sub(#BROADCAST_MARK + 1))
+    return ok and type(msg) == "table" and msg.a and msg.a[1] or nil
+end
+
 function WaCa.Subscribe(topic, fn)
     WaCa.On(topic, function(data) fn(data, WaCa.EventFrom) end)
     -- the latest sticky value: this mod's own, else another mod's (kept by the native side)
@@ -586,16 +598,35 @@ end
 -- The active character's save slot: "<save GUID>-<character slot>". The game keeps ONE save (saveSlots holds its
 -- GUID, the same for every character on the account) with up to MaxSlots characters in it; CurrentSaveSlotIndex is the
 -- character. (Before 0.5.4 the index was taken as an index into saveSlots - only character slot 0 ever had a sidecar.)
+-- the game's save file as Lua tables, read once and again after each save (GameSaved), or nil
+local saveCache, saveStale = nil, true
+local function saveData()
+    if saveStale then
+        saveCache = WaCa.ReadJson(WaCa.SaveDir() .. "/WrcGame.json")
+        saveStale = false
+    end
+    return saveCache
+end
+WaCa.On("GameSaved", function() saveStale = true end)
+
+-- the active character: "<save id>-<cat slot>". The cat slot is the save's own Shared.General.CurrentCatSlot (the
+-- character picked in "Select Your Cat"); the save game's CurrentSaveSlotIndex stayed 0 for every cat (VM 2026-10-28:
+-- a new cat in slot 8 read slot 0's cat - its day, its names, its rank)
 function WaCa.CurrentSlot()
     local sm = FindFirstOf("SwtSaveManager")
     if not sm or not sm:IsValid() then return nil end
     local sg = sm.SaveGame
     if not sg or not sg:IsValid() then return nil end
-    local idx = sg.CurrentSaveSlotIndex
-    if not idx or idx < 0 then return nil end
     local guid = #sg.saveSlots > 0 and sg.saveSlots[1]:ToString() or ""
     if guid == "" then guid = sg.GamerId:ToString() end
     if guid == "" then return nil end
+    local idx
+    local data = saveData()
+    pcall(function() idx = tonumber(data[guid].Shared.General.CurrentCatSlot) end)
+    if not idx then
+        idx = sg.CurrentSaveSlotIndex
+        if not idx or idx < 0 then return nil end
+    end
     return string.format("%s-%d", guid, idx)
 end
 
@@ -686,14 +717,68 @@ function WaCa.ReadJson(path)
     return ok and result or nil
 end
 
--- the active character's progression as the game saved it (WrcGame.json: <save>.<character slot>.GameplayProgression -
--- Level, Rank (ECharacterRank value), ...), or nil. As fresh as the game's last save.
-function WaCa.GameProgress()
+-- THE PLAYER'S RANK as an ECharacterRank value (1 Apprentice, 2 Warrior, 3 Deputy, 4 Leader) and where it came from,
+-- or nil. The game's own record of the promotions: its rank quests (QuestProgression Quest.Rank.N - the quest you do as
+-- an apprentice, as a warrior, as the deputy; each one done is a promotion), so the rank is 1 + the rank quests done
+-- (Status 4) - read from the game's live data for the character being played (WaCa.SaveCharacter), which works for a
+-- save made before the mods too. A promotion during play (the rank-up sequence's end, OnPlayRankUpSequenceFinished -
+-- WaCa Core publishes it as the sticky topic "player.rank" { rank, slot }) counts at once. (The save FILE gave a new
+-- apprentice another cat's deputy rank: operator 2026-10-28.)
+local QUEST_DONE = 4
+function WaCa.PlayerRank()
     local slot = WaCa.CurrentSlot()
-    if not slot then return nil end
+    local live = WaCa.Latest("player.rank")
+    if live and live.slot == slot and tonumber(live.rank) and live.from == "promotion" then return tonumber(live.rank), "promotion" end
+    local character = WaCa.SaveCharacter()
+    local quests = character and character.QuestProgression
+    if type(quests) ~= "table" then return nil, "unknown" end
+    local done = 0
+    for _, chapter in pairs(quests) do
+        if type(chapter) == "table" then
+            for key, q in pairs(chapter) do
+                if type(key) == "string" and key:match("^Quest%.Rank%.%d+$") and type(q) == "table" and q.Status == QUEST_DONE then
+                    done = done + 1
+                end
+            end
+        end
+    end
+    return math.min(1 + done, 4), "rank quests"
+end
+
+-- the player's clan ("RiverClan" ...): the cat in the world's own (its CustomData.ClanType), else the save's, or nil
+function WaCa.PlayerClan()
+    local comp = WaCa.PlayerCats()[1]
+    local value
+    pcall(function() value = comp and comp.CustomData.ClanType end)
+    if type(value) == "number" and value > 0 then
+        local name
+        pcall(function()
+            StaticFindObject("/Script/SwtQuest.EClanType"):ForEachName(function(n, v)
+                if v == value then name = (n:ToString():gsub("^.*::", "")) end
+            end)
+        end)
+        if name then return name end
+    end
+    local p = WaCa.GameProgress()
+    local me = p and p["Gameplay.Combat.Character.Cat.Player"]
+    return me and type(me.Customization) == "string" and me.Customization:match("ClanType=(%w+)") or nil
+end
+
+-- THE CHARACTER BEING PLAYED, as the game last saved it: its record in WrcGame.json (<save>.<cat slot>:
+-- GameplayProgression, QuestProgression ...), or nil. The game saves when a character is loaded or created, so the
+-- record is the active cat's (WaCa.CurrentSlot: the save's own CurrentCatSlot - operator 2026-10-28, two cats mixed up).
+function WaCa.SaveCharacter()
+    local data = saveData()
+    local slot = WaCa.CurrentSlot()
+    if not (data and slot) then return nil end
     local save, index = slot:match("^(.*)-(%d+)$")
-    local data = WaCa.ReadJson(WaCa.SaveDir() .. "/WrcGame.json")
-    local character = data and data[save] and data[save][index]
+    local character = data[save] and data[save][index]
+    return type(character) == "table" and character or nil
+end
+
+-- the character's GameplayProgression (Level, FreshKill, the player cat's Customization ...), or nil
+function WaCa.GameProgress()
+    local character = WaCa.SaveCharacter()
     return character and character.GameplayProgression or nil
 end
 
@@ -946,6 +1031,23 @@ function WaCa.PlayerCats(withPreview)
         end
     end
     return out
+end
+
+-- where a UMG widget was last drawn: left, top, right, bottom in desktop pixels, or nil (not drawn / no native half).
+-- Read natively: a widget's geometry can't be read from Lua (its fields aren't reflected - a copy comes back empty).
+function WaCa.WidgetRect(widget)
+    if not (WaCaNative_WidgetRect and widget and widget:IsValid()) then return nil end
+    local ok, l, t, r, b = pcall(WaCaNative_WidgetRect, widget:GetAddress())
+    if ok and l then return l, t, r, b end
+    return nil
+end
+
+-- is the mouse over the widget (by where it was drawn)? and the widget's on-screen area (for the innermost of several)
+function WaCa.MouseOver(widget)
+    local l, t, r, b = WaCa.WidgetRect(widget)
+    if not (l and WaCaNative_CursorPos) then return false end
+    local x, y = WaCaNative_CursorPos()
+    return x >= l and x <= r and y >= t and y <= b, (r - l) * (b - t)
 end
 
 -- --- menus vs gameplay (shared by every WaCa mod: the Keybinds & Mouse mod's cursor, the clan loop's pauses) ---

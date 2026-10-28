@@ -43,12 +43,14 @@ These are stable for other mods to use (positional arguments as listed).
 | Event | Arguments | |
 | --- | --- | --- |
 | `core.started` (topic, sticky) | `{ version, mods = { "WaCaCore", ... } }` | the WaCa mods running |
+| `player.rank` (topic, sticky) | `{ v = 1, rank, name, slot, from }` | your cat's rank (ECharacterRank: 1 Apprentice ... 4 Leader) - from the save's rank quests when a character loads (`from = "rank quests"`), at once on a promotion (`"promotion"`); `WaCa.PlayerRank()` reads it |
 | `SpeedFactor` (send it) | `source, factor` | slow the player's cat down: the cat's speed is the product of every source's factor; `1` / `nil` = that source off |
 
 ### The game (raised in every mod by the native half; objects don't travel)
 `Started` (after your `WaCa.Ready()`), `ScreenShown` / `ScreenHidden` / `ScreenFocusIn` / `ScreenFocusOut` (screen),
 `CatSpawned` (actor), `CatStep` (the cat's mesh: a footstep), `CatLookPart` (a part of a cat's look built),
-`GameSaved` (context), `KeyDown` (_, key name), `AreaOverlap` (area, other, "1" entering / "0" leaving, ...),
+`GameSaved` (context), `KeyDown` / `KeyUp` (_, key name - mouse buttons too), `MouseMove` (_, x, y),
+`MouseWheel` (_, notches), `AreaOverlap` (area, other, "1" entering / "0" leaving, ...),
 `HuntCaught` / `HuntMissed` / `PreyFlee` (prey, cat, ...), `SteamTextInput` (submitted, text), the sequencer:
 `SequenceStarted` / `SequenceFinished` (manager, the sequence's id), `SequenceEnded`, `DialogueStarted` (manager, the
 dialogue's id), `DialogueNext`. Any other game function: `WaCa.Watch` (see API.md).

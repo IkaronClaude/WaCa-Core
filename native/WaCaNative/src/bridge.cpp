@@ -26,6 +26,7 @@
 // the game thread (LoopAsync / ExecuteAsync use another OS thread on the same state: that is what corrupted the VM in
 // 0.5.3).
 #include "bridge.h"
+#include "keys.h"
 
 #include <Mod/LuaMod.hpp>
 #include <LuaMadeSimple/LuaMadeSimple.hpp>
@@ -45,6 +46,7 @@
 #include <Unreal/CoreUObject/UObject/FStrProperty.hpp>
 
 #include <algorithm>
+#include <cstring>
 #include <atomic>
 #include <mutex>
 #include <map>
@@ -794,6 +796,51 @@ int LuaRebuildLook(const LuaMadeSimple::Lua& lua) {
     return 1;
 }
 
+// WaCaNative_WidgetRect(a UMG widget's address) -> left, top, right, bottom in desktop pixels (Slate's absolute space),
+// or nil: where the widget was last drawn. FGeometry keeps everything in fields reflection doesn't see (its UE 5.7
+// layout: Size 0x0, Scale 0x8, AbsolutePosition 0xC, Position 0x14, AccumulatedRenderTransform 0x1C = a 2x2 matrix +
+// a translation; 0x38 in all), so a Lua copy of it comes back all zeros - the mouse's hit tests on the game's menus
+// (the clan crests, the key icons) need it read here.
+int LuaWidgetRect(const LuaMadeSimple::Lua& lua) {
+    auto* widget = reinterpret_cast<UObject*>(static_cast<uintptr_t>(lua.get_integer()));
+    UFunction* fn = widget ? widget->GetFunctionByNameInChain(STR("GetCachedGeometry")) : nullptr;
+    if (!fn) {
+        lua.set_nil();
+        return 1;
+    }
+    alignas(16) unsigned char geometry[0x38]{};
+    widget->ProcessEvent(fn, geometry);
+    float sizeX, sizeY, m00, m01, m10, m11, tx, ty;
+    std::memcpy(&sizeX, geometry + 0x0, 4);
+    std::memcpy(&sizeY, geometry + 0x4, 4);
+    std::memcpy(&m00, geometry + 0x1C, 4);
+    std::memcpy(&m01, geometry + 0x20, 4);
+    std::memcpy(&m10, geometry + 0x24, 4);
+    std::memcpy(&m11, geometry + 0x28, 4);
+    std::memcpy(&tx, geometry + 0x2C, 4);
+    std::memcpy(&ty, geometry + 0x30, 4);
+    if (sizeX <= 0 || sizeY <= 0) {
+        lua.set_nil();
+        return 1;
+    }
+    // the far corner through the accumulated transform (local -> absolute: P * M + translation)
+    float x1 = sizeX * m00 + sizeY * m10 + tx, y1 = sizeX * m01 + sizeY * m11 + ty;
+    lua.set_number(std::min(tx, x1));
+    lua.set_number(std::min(ty, y1));
+    lua.set_number(std::max(tx, x1));
+    lua.set_number(std::max(ty, y1));
+    return 4;
+}
+
+// WaCaNative_CursorPos() -> x, y: the mouse in desktop pixels (the same space as WaCaNative_WidgetRect)
+int LuaCursorPos(const LuaMadeSimple::Lua& lua) {
+    long x = 0, y = 0;
+    keys::CursorPos(x, y);
+    lua.set_number(x);
+    lua.set_number(y);
+    return 2;
+}
+
 // WaCaNative_CloneTableRow(DataTable address, existing row, new row) -> true / false: a new row in one of the game's
 // tables, a deep copy of an existing one (tables.cpp) - mod rows in the game's own lists (pattern / marking grids)
 int LuaCloneTableRow(const LuaMadeSimple::Lua& lua) {
@@ -858,6 +905,8 @@ void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
     lua.register_function("WaCaNative_DevDelegate", &LuaDevDelegate);
     lua.register_function("WaCaNative_RebuildLook", &LuaRebuildLook);
     lua.register_function("WaCaNative_CloneTableRow", &LuaCloneTableRow);
+    lua.register_function("WaCaNative_WidgetRect", &LuaWidgetRect);
+    lua.register_function("WaCaNative_CursorPos", &LuaCursorPos);
     lua.register_function("WaCaNative_DevAxisBindings", &LuaDevAxisBindings);
     lua.register_function("WaCaNative_DevWatchAxis", &LuaDevWatchAxis);
     lua.register_function("WaCaNative_DevWatchAddress", &LuaDevWatchAddress);

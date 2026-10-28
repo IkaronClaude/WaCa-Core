@@ -148,4 +148,42 @@ end)
 -- (published on Started - the game thread; at load the engine hasn't ticked yet and nothing can be delivered)
 WaCa.On("Started", function() WaCa.Publish("core.started", { version = VERSION, mods = mods }, true) end)
 
+-- THE PLAYER'S RANK for every mod (topic "player.rank", sticky: { v = 1, rank, name, slot, from }): from the save's
+-- rank quests when a character is loaded (WaCa.PlayerRank), and at once when a promotion's rank-up sequence ends
+-- (the game's own QuestObjectiveRankUpTask, the new rank handed over) - the game's next save then records it.
+local rankNames = {}
+local function rankName(v)
+    if not next(rankNames) then
+        pcall(function()
+            StaticFindObject("/Script/SwtQuest.ECharacterRank"):ForEachName(function(n, x) rankNames[x] = (n:ToString():gsub("^.*::", "")) end)
+        end)
+    end
+    return rankNames[v]
+end
+local function publishRank(rank, from)
+    local slot = WaCa.CurrentSlot()
+    if not (rank and slot) then return end
+    local last = WaCa.Latest("player.rank")
+    if last and last.slot == slot and last.rank == rank then return end
+    WaCa.Publish("player.rank", { v = 1, rank = rank, name = rankName(rank), slot = slot, from = from }, true)
+    log("your cat's rank: %s (%s)", tostring(rankName(rank) or rank), from)
+end
+local rankSlot
+WaCa.On("GameSaved", function()
+    local slot = WaCa.CurrentSlot()
+    if slot == rankSlot then return end
+    rankSlot = slot
+    local rank, from = WaCa.PlayerRank()
+    publishRank(rank, from)
+end)
+WaCa.Watch("OnPlayRankUpSequenceFinished", "/Script/SwtQuest.QuestObjectiveRankUpTask", "WaCaRankUp", "post", "Rank")
+WaCa.On("WaCaRankUp", function(_, rank)
+    local value = tonumber(rank)
+    rankName(1)                         -- (the names, for a rank handed over by name)
+    if not value then
+        for v, n in pairs(rankNames) do if n == tostring(rank):gsub("^.*::", "") then value = v end end
+    end
+    publishRank(value, "promotion")
+end)
+
 WaCa.Ready()
