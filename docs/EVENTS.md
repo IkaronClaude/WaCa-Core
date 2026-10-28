@@ -74,6 +74,7 @@ dialogue's id), `DialogueNext`. Any other game function: `WaCa.Watch` (see API.m
 | `GatheringAnnounced` / `GatheringHeld` | day, chosen |
 | `PatrolOut` / `PatrolBack` | patrol id (+ cats, which stay in Clan Life) |
 | `StoryVar` | name, value (a story variable changed) |
+| `clan.status` (topic, sticky) | `{ v = 1, day, third, stage, task, turnIn, title, where, activity, goal, got, need, done, text }` - the day at a glance (Clan Life shows it on the HUD) |
 
 A scene's `Emit: <event>` step sends `<event>` (with the scene's context table) - so a story written in ini files can
 trigger your mod's code.
