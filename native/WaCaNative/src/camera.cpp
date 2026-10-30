@@ -79,6 +79,8 @@ constexpr uint8_t kCameraUp = 62;
 void* g_frameComponent = nullptr;
 void* g_frameInput = nullptr;
 float g_frameDt = 0.f;
+// a lag spike's mouse jump (MouseDelta): a frame longer than this, a delta above this (mouse units - LookYaw 2 = 50 deg)
+constexpr float kSpikeDt = 0.1f, kSpikeDelta = 25.f;
 // the pitch speed swapped for this frame (restored after the update), see PitchAxisDetour
 bool g_speedSwapped = false;
 float g_savedPitchSpeed = 0.f;
@@ -108,6 +110,17 @@ bool MouseDelta(float& dx, float& dy) {
     pc->ProcessEvent(g_mouseDelta, &params);
     dx = params.x;
     dy = params.y;
+    // A lag spike (a frame over 0.1 s - herb gathering): the delta it brings can be the cursor put back in the window,
+    // not the hand - the camera spun round with the mouse barely moved (operator 2026-10-30). Such a jump in a long
+    // frame is dropped (and logged); normal frames pass as they are.
+    if (g_frameDt > kSpikeDt && (std::fabs(dx) > kSpikeDelta || std::fabs(dy) > kSpikeDelta)) {
+        static float lastDt = 0.f;
+        if (lastDt != g_frameDt) {
+            lastDt = g_frameDt;
+            logx::Line(L"[camera] lag spike (dt %.3f): mouse jump %.1f, %.1f dropped", g_frameDt, dx, dy);
+        }
+        dx = dy = 0.f;
+    }
     return true;
 }
 
