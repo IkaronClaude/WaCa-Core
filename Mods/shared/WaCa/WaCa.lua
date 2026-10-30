@@ -1093,6 +1093,91 @@ function WaCa.MenuShowing(leaving)
     return false
 end
 
+-- THE CATS ABOUT (library exercise 2026-10-30: Clan Life's cast and WaCa Cutscenes both had to find cats by name / part
+-- - one picture of them here). WaCa.CatName(cat) -> the name the game shows for a cat (its name ids -> the text
+-- table: a WaCa Looks roster Name included), or nil. WaCa.Cats() -> every cat shown now - the camp's named (quest)
+-- cats and the walking cats - nearest to your cat first: { actor, name, clan, giver, story, kind = "quest" | "walker",
+-- dist } (giver: EGiverRole name - Leader, Deputy ...; story: ENarrativeRole name - RiverClanDeputy ...).
+local catEnums = {}
+local function catEnum(path, value)
+    local cache = catEnums[path]
+    if not cache then
+        cache = {}
+        catEnums[path] = cache
+        pcall(function()
+            StaticFindObject(path):ForEachName(function(n, v) cache[v] = n:ToString():gsub("^.*::", "") end)
+        end)
+    end
+    return cache[value]
+end
+
+-- your cat's name as the game shows it now (the HUD's own label - a WaCa Looks name included; else the save's), or
+-- "You"
+function WaCa.PlayerName()
+    local name
+    for _, w in ipairs(FindAllOf("GuiExplorationCharacterSlot") or {}) do
+        pcall(function()
+            local t = w:IsValid() and w.mcGuiTextName and w.mcGuiTextName:GetText():ToString()
+            if t and t ~= "" then name = t end
+        end)
+        if name then break end
+    end
+    if not name then pcall(function() local c = WaCa.SaveCharacter() if c and c.Name then name = c.Name end end) end
+    if name and name == name:upper() then name = name:sub(1, 1) .. name:sub(2):lower() end   -- (the HUD's capitals)
+    return name or "You"
+end
+
+function WaCa.CatName(cat)
+    local name
+    pcall(function()
+        local cd = cat.MeshCustomizationComponent.CustomData
+        name = WaCa.GetText(cd.PrefixNameId:ToString() .. cd.SuffixNameId:ToString())
+    end)
+    return (name and name ~= "") and name or nil
+end
+
+local function catShown(a)
+    local ok, yes = pcall(function()
+        if a.bHidden then return false end
+        local mesh = a.SkeletalMeshComponent or a.Mesh
+        return not mesh or not mesh:IsValid() or mesh:IsVisible()
+    end)
+    return ok and yes
+end
+
+function WaCa.Cats()
+    local pawn
+    for _, c in ipairs(FindAllOf("SwtPlayerController") or {}) do
+        if c:IsValid() and c.Player and c.Pawn and c.Pawn:IsValid() then pawn = c.Pawn end
+    end
+    local at = pawn and pawn:K2_GetActorLocation()
+    local out = {}
+    local function add(a, giver, story, kind)
+        local q = a:K2_GetActorLocation()
+        local clan
+        pcall(function() clan = a.ClanType end)
+        if type(clan) ~= "number" then pcall(function() clan = a.MeshCustomizationComponent.CustomData.ClanType end) end
+        out[#out + 1] = {
+            actor = a, name = WaCa.CatName(a) or a:GetFName():ToString(),
+            clan = type(clan) == "number" and catEnum("/Script/SwtQuest.EClanType", clan) or nil,
+            giver = giver or "", story = story or "", kind = kind,
+            dist = at and math.sqrt((q.X - at.X) ^ 2 + (q.Y - at.Y) ^ 2) or 0,
+        }
+    end
+    for _, a in ipairs(FindAllOf("SwtAdventureQuestActor") or {}) do
+        pcall(function()
+            if a:IsValid() and catShown(a) then
+                add(a, catEnum("/Script/SwtQuest.EGiverRole", a.GiverRole), catEnum("/Script/SwtQuest.ENarrativeRole", a.narrativeRole), "quest")
+            end
+        end)
+    end
+    for _, a in ipairs(FindAllOf("SwtAdventureWalkingNPC") or {}) do
+        pcall(function() if a:IsValid() and catShown(a) then add(a, "", "", "walker") end end)
+    end
+    table.sort(out, function(x, y) return x.dist < y.dist end)
+    return out
+end
+
 -- a menu is up now (no screen at all = gameplay)
 function WaCa.InMenu() return WaCa.MenuShowing() == true end
 

@@ -12,6 +12,7 @@
 //   PreyFlee|<0/1>|<size tags that keep the game's reaction>   prey run instead of reacting (prey.cpp)
 //   PreyPeace|<CharacterType values, comma separated>      those prey start no fight when touched (prey.cpp)
 //   HuntLoud|...                 a no-op (kept for old Lua)
+//   HuntFail|<prey full name>    the pounce under way on that prey fails (hunt.cpp)
 //   HuntRoll|<0/1>|<base chance %>|<critical miss %>|<CharacterType value>=<factor>,...   (hunt.cpp)
 //   CombatScale|<dealt x>|<taken x>   the player's cat's combat damage (combat.cpp)
 #include "commands.h"
@@ -60,6 +61,7 @@ bool Run(const std::wstring& cmd) {
     else if (verb == L"HuntRoll") hunt::Configure(cmd);
     else if (verb == L"CombatScale") combat::Configure(cmd);
     else if (verb == L"HuntLoud") hunt::SetLoud(Arg(cmd, 1) == L"1", std::wcstod(Arg(cmd, 2).c_str(), nullptr));
+    else if (verb == L"HuntFail") hunt::Fail(Arg(cmd, 1));
     else if (verb == L"PreyFlee") prey::Configure(Arg(cmd, 1) == L"1", Arg(cmd, 2));
     else if (verb == L"PreyPeace") prey::Peace(Arg(cmd, 1));
     else if (verb == L"CameraRelativeMove") camera::SetCameraRelativeMove(Arg(cmd, 1) == L"1");

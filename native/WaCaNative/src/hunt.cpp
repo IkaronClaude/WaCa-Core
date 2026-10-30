@@ -77,40 +77,123 @@ double Roll() {
     return std::uniform_real_distribution<double>(0.0, 1.0)(rng);
 }
 
-void __fastcall LandedDetour(void* componentPtr, void* hit, void* characterPtr) {
-    auto* component = static_cast<UObject*>(componentPtr);
-    auto* cat = static_cast<UObject*>(characterPtr);
-    // a component's outer is its actor (the prey)
-    UObject* prey = component ? component->GetOuterPrivate() : nullptr;
-    if (!g_on || !prey || !cat) {
-        g_landed(componentPtr, hit, characterPtr);
-        return;
-    }
+long long NowMs() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+// THE ROLL, ONCE PER POUNCE (operator 2026-10-30: a failed roll makes the prey flee AS THE CAT JUMPS): decided at the
+// jump (OnHuntedPounceReached - the walk is over, the leap starts) - a miss goes to Lua at once (HuntMissed: the prey
+// runs off) and the landing then catches nothing; a catch goes at the landing (HuntCaught). A prey Lua marked as
+// spotted during the walk (HuntFail) is a miss. A landing without a jump decision rolls there (as before).
+struct Decision { bool caught; double chance; bool announced; };
+std::map<void*, Decision> g_decisions;      // prey -> this pounce's result (cleared at the landing / the sequence end)
+
+// the roll for a prey of a rolled kind (true = there is a decision now)
+bool Decide(UObject* prey, const char* when) {
     auto* type = prey->GetValuePtrByPropertyNameInChain<uint8_t>(STR("CharacterType"));
     int typeValue = type ? *type : -1;
     double chance;
     {
         std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_decisions.count(prey)) return true;
         auto it = g_factors.find(typeValue);
-        if (it == g_factors.end()) {
-            g_landed(componentPtr, hit, characterPtr);
-            return;
-        }
+        if (it == g_factors.end()) return false;
         chance = g_base * it->second;
-    }
-    {
-        std::lock_guard<std::mutex> lock(g_mutex);
         if (chance > 1.0 - g_critMiss) chance = 1.0 - g_critMiss;
     }
     double r = Roll();
     bool caught = r < chance;
-    logx::Line(L"[hunt] landed on %s (type %d): chance %.0f%%, rolled %.0f -> %s", prey->GetName().c_str(), typeValue,
-               chance * 100.0, r * 100.0, caught ? L"CAUGHT" : L"missed");
+    logx::Line(L"[hunt] t=%lld %S on %s (type %d): chance %.0f%%, rolled %.0f -> %s", NowMs(), when, prey->GetName().c_str(),
+               typeValue, chance * 100.0, r * 100.0, caught ? L"CAUGHT" : L"missed");
+    std::lock_guard<std::mutex> lock(g_mutex);
+    g_decisions[prey] = {caught, chance, false};
+    return true;
+}
+
+void Announce(UObject* prey, UObject* cat, bool caught, double chance) {
+    auto* type = prey->GetValuePtrByPropertyNameInChain<uint8_t>(STR("CharacterType"));
     char pct[16];
     snprintf(pct, sizeof(pct), "%.0f", chance * 100.0);
     bridge::Emit(caught ? "HuntCaught" : "HuntMissed",
-                 {Narrow(prey->GetFullName()), Narrow(cat->GetFullName()), std::to_string(typeValue), pct});
-    if (caught) g_landed(componentPtr, hit, characterPtr);
+                 {Narrow(prey->GetFullName()), cat ? Narrow(cat->GetFullName()) : std::string(), std::to_string(type ? *type : -1), pct});
+}
+
+void __fastcall LandedDetour(void* componentPtr, void* hit, void* characterPtr) {
+    auto* component = static_cast<UObject*>(componentPtr);
+    auto* cat = static_cast<UObject*>(characterPtr);
+    // a component's outer is its actor (the prey)
+    UObject* prey = component ? component->GetOuterPrivate() : nullptr;
+    if (!g_on || !prey || !cat || !Decide(prey, "landed")) {
+        g_landed(componentPtr, hit, characterPtr);
+        return;
+    }
+    Decision d;
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        d = g_decisions[prey];
+        g_decisions.erase(prey);
+    }
+    logx::Line(L"[hunt] t=%lld landed on %s -> %s", NowMs(), prey->GetName().c_str(), d.caught ? L"caught" : L"nothing to catch");
+    if (!d.announced) Announce(prey, cat, d.caught, d.chance);
+    if (d.caught) g_landed(componentPtr, hit, characterPtr);
+}
+
+// THE POUNCE'S TIMELINE (2026-10-30, the pounce walk spec): the prey component's other two hunt slots, logged with
+// the time and sent to Lua - +0xAB0 OnHuntedPounceReached(bStarted, requester) -> HuntPounce (prey, "1" / "0"),
+// +0xAA8 OnHuntedSequencerFinish(sequenceId) -> HuntSequenceEnd (prey). Anchors: each UFunction's thunk calls its slot.
+using PounceReachedFn = void(__fastcall*)(void* component, bool started, void* requester);
+using SequenceFinishFn = void(__fastcall*)(void* component, uint64_t sequenceTag);
+PounceReachedFn g_pounceReached = nullptr;
+SequenceFinishFn g_sequenceFinish = nullptr;
+constexpr int kPounceReachedSlot = 0xAB0, kSequenceFinishSlot = 0xAA8;
+
+void __fastcall PounceReachedDetour(void* componentPtr, bool started, void* requester) {
+    auto* component = static_cast<UObject*>(componentPtr);
+    UObject* prey = component ? component->GetOuterPrivate() : nullptr;
+    logx::Line(L"[hunt] t=%lld pounce reached (started %d) on %s by %s", NowMs(), started ? 1 : 0,
+               prey ? prey->GetName().c_str() : L"?", requester ? static_cast<UObject*>(requester)->GetName().c_str() : L"-");
+    if (prey) bridge::Emit("HuntPounce", {Narrow(prey->GetFullName()), started ? "1" : "0"});
+    // the jump: the roll now - a miss is told at once (the prey bolts as the cat leaps)
+    if (g_on && prey && !started && Decide(prey, "jumped")) {
+        bool tell = false;
+        double chance = 0;
+        {
+            std::lock_guard<std::mutex> lock(g_mutex);
+            Decision& d = g_decisions[prey];
+            if (!d.caught && !d.announced) {
+                d.announced = true;
+                tell = true;
+                chance = d.chance;
+            }
+        }
+        // (outside the lock: Lua's handlers run inside the emit and may send HuntFail)
+        if (tell) Announce(prey, static_cast<UObject*>(requester), false, chance);
+    }
+    g_pounceReached(componentPtr, started, requester);
+}
+
+void __fastcall SequenceFinishDetour(void* componentPtr, uint64_t tag) {
+    auto* component = static_cast<UObject*>(componentPtr);
+    UObject* prey = component ? component->GetOuterPrivate() : nullptr;
+    logx::Line(L"[hunt] t=%lld hunted sequence finished on %s", NowMs(), prey ? prey->GetName().c_str() : L"?");
+    if (prey) bridge::Emit("HuntSequenceEnd", {Narrow(prey->GetFullName())});
+    if (prey) { std::lock_guard<std::mutex> lock(g_mutex); g_decisions.erase(prey); }
+    g_sequenceFinish(componentPtr, tag);
+}
+
+bool HookSlot(void* preyComponent, const wchar_t* ufunction, const char* callPattern, int slot, void* detour, void** original,
+              const wchar_t* what) {
+    auto* fn = UObjectGlobals::StaticFindObject<UFunction*>(nullptr, nullptr, ufunction);
+    auto* thunk = fn ? reinterpret_cast<uint8_t*>(fn->GetFunc()) : nullptr;
+    if (!thunk || !scan::BodyContains(thunk, callPattern, 1)) {
+        logx::Line(L"[hunt] %s: its thunk %p doesn't call slot +0x%X - not hooked", what, thunk, slot);
+        return false;
+    }
+    auto* target = (*reinterpret_cast<uint8_t***>(preyComponent))[slot / 8];
+    bool ok = MH_CreateHook(target, detour, original) == MH_OK && MH_EnableHook(target) == MH_OK;
+    logx::Line(L"[hunt] %s at %p%s", what, target, ok ? L"" : L" - could not hook");
+    if (!ok) *original = nullptr;
+    return ok;
 }
 
 using AddValueFn = void(__fastcall*)(void* component, float amount);
@@ -137,6 +220,18 @@ namespace hunt {
 // (no "heard on loud ground" at the landing any more: the landing spot is the prey's own - it is already caught then;
 // prey hear the cat the game's way before the pounce, operator 2026-10-30. The command stays a no-op for old Lua.)
 void SetLoud(bool, double) {}
+
+// HuntFail|<prey full name>: this pounce on that prey fails (Lua: the prey spotted the cat during the walk and ran)
+void Fail(const std::wstring& preyName) {
+    std::wstring path = preyName;
+    size_t sp = path.find(L' ');
+    if (sp != std::wstring::npos) path = path.substr(sp + 1);
+    auto* prey = UObjectGlobals::StaticFindObject<UObject*>(nullptr, nullptr, path.c_str());
+    if (!prey) return;
+    std::lock_guard<std::mutex> lock(g_mutex);
+    g_decisions[prey] = {false, 0.0, true};
+    logx::Line(L"[hunt] t=%lld %s spotted the cat during the pounce - it fails", NowMs(), prey->GetName().c_str());
+}
 
 int CombatExperience(void* tuningManager, const std::wstring& kind) {
     if (!tuningManager) return -1;
@@ -225,6 +320,12 @@ bool HookFrom(void* preyComponent) {
     logx::Line(L"[hunt] prey landing at %p (confirmed: OnHunterLanded's thunk calls its slot)%s", target,
                ok ? L"" : L" - could not hook");
     if (!ok) g_landed = nullptr;
+    HookSlot(preyComponent, STR("/Script/SwtAdventure.SwtAdventurePreyComponent:OnHuntedPounceReached"), "FF 90 B0 0A 00 00",
+             kPounceReachedSlot, reinterpret_cast<void*>(&PounceReachedDetour), reinterpret_cast<void**>(&g_pounceReached),
+             L"pounce reached");
+    HookSlot(preyComponent, STR("/Script/SwtAdventure.SwtAdventurePreyComponent:OnHuntedSequencerFinish"), "FF 90 A8 0A 00 00",
+             kSequenceFinishSlot, reinterpret_cast<void*>(&SequenceFinishDetour), reinterpret_cast<void**>(&g_sequenceFinish),
+             L"hunted sequence finish");
     return ok;
 }
 

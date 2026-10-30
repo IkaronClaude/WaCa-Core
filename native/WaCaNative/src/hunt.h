@@ -9,6 +9,8 @@ bool HookFrom(void* preyComponent);
 void Configure(const std::wstring& command);
 // HuntLoud: a no-op now (the landing no longer checks loud ground - the prey is already caught there)
 void SetLoud(bool loud, double windowSeconds);
+// HuntFail|<prey full name>: the pounce under way on that prey fails (it spotted the cat during the walk)
+void Fail(const std::wstring& preyName);
 // add EXP to a level component (USwtQuestLevelComponent, the player state's) the way the game does - its resource
 // "add value" virtual (level-ups included); false when the anchors disagree
 bool AddExperience(void* levelComponent, float amount);

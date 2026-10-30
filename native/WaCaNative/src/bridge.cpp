@@ -48,6 +48,7 @@
 #include <algorithm>
 #include <cstring>
 #include <atomic>
+#include <chrono>
 #include <mutex>
 #include <map>
 #include <memory>
@@ -216,8 +217,37 @@ void DeliverStarted() {
     }
 }
 
+// DEV TRACE (2026-10-30, the pounce on the VM): WaCaNative_DevTrace("<class path>,<class path>", seconds) logs every
+// UFunction that runs through ProcessEvent on an object of those classes - each (object, function) once per second -
+// to see what the game does (and doesn't) around an action.
+std::mutex g_traceMutex;
+std::vector<std::wstring> g_tracePaths;
+std::vector<UClass*> g_traceClasses;
+std::chrono::steady_clock::time_point g_traceUntil{};
+std::map<std::wstring, std::chrono::steady_clock::time_point> g_traceSeen;
+
+void TraceCall(UObject* context, UFunction* function) {
+    auto now = std::chrono::steady_clock::now();
+    if (now > g_traceUntil) return;
+    std::lock_guard<std::mutex> lock(g_traceMutex);
+    if (g_traceClasses.size() != g_tracePaths.size()) {
+        g_traceClasses.clear();
+        for (auto& path : g_tracePaths)
+            g_traceClasses.push_back(UObjectGlobals::StaticFindObject<UClass*>(nullptr, nullptr, path.c_str()));
+    }
+    bool match = false;
+    for (auto* c : g_traceClasses) if (c && context->IsA(c)) { match = true; break; }
+    if (!match) return;
+    std::wstring key = context->GetName() + L"::" + function->GetName();
+    auto it = g_traceSeen.find(key);
+    if (it != g_traceSeen.end() && now - it->second < std::chrono::seconds(1)) return;
+    g_traceSeen[key] = now;
+    logx::Line(L"[trace] %s", key.c_str());
+}
+
 void OnProcessEvent(bool post, UObject* context, UFunction* function, void* params) {
     if (!OnGameThread()) return;
+    if (!post && context && function && std::chrono::steady_clock::now() <= g_traceUntil) TraceCall(context, function);
     if (g_startPending.load(std::memory_order_relaxed)) DeliverStarted();
     if (g_watchCount.load(std::memory_order_relaxed) == 0 || !context || !function) return;
     const FName name = function->GetNamePrivate();
@@ -247,6 +277,28 @@ void OnProcessEvent(bool post, UObject* context, UFunction* function, void* para
 }
 
 // --- Lua functions (the calling Lua state is the argument; arguments are consumed from index 1) ---
+
+int LuaDevTrace(const LuaMadeSimple::Lua& lua) {
+    if (!lua.is_string()) lua.throw_error("WaCaNative_DevTrace(\"<class path>,<class path>\", seconds)");
+    std::wstring list = Wide(std::string(lua.get_string()));
+    double seconds = lua.is_number() ? lua.get_number() : 10.0;
+    std::lock_guard<std::mutex> lock(g_traceMutex);
+    g_tracePaths.clear();
+    g_traceClasses.clear();
+    g_traceSeen.clear();
+    size_t start = 0;
+    while (start <= list.size()) {
+        size_t end = list.find(L',', start);
+        std::wstring p = list.substr(start, end == std::wstring::npos ? std::wstring::npos : end - start);
+        while (!p.empty() && p.front() == L' ') p.erase(p.begin());
+        if (!p.empty()) g_tracePaths.push_back(p);
+        if (end == std::wstring::npos) break;
+        start = end + 1;
+    }
+    g_traceUntil = std::chrono::steady_clock::now() + std::chrono::milliseconds(static_cast<long long>(seconds * 1000));
+    logx::Line(L"[trace] %zu classes for %.0f s", g_tracePaths.size(), seconds);
+    return 0;
+}
 
 int LuaWatch(const LuaMadeSimple::Lua& lua) {
     ModState* state = StateOf(lua);
@@ -898,6 +950,7 @@ void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
     state->thread = &lua.new_thread();
     lua.registry().make_ref();                // anchors the thread (new_thread left it on the stack)
     lua.register_function("WaCaNative_Watch", &LuaWatch);
+    lua.register_function("WaCaNative_DevTrace", &LuaDevTrace);
     lua.register_function("WaCaNative_Ready", &LuaReady);
     lua.register_function("WaCaNative_Broadcast", &LuaBroadcast);
     lua.register_function("WaCaNative_LastBroadcast", &LuaLastBroadcast);
