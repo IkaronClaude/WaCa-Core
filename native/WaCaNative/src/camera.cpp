@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <vector>
@@ -103,6 +104,17 @@ UObject* FirstLive(const CharType* className) {
     return nullptr;
 }
 
+// a frame where the mouse alone turns the camera a lot (operator 2026-10-30: the camera spun when collecting, mouse
+// hardly moved - the VM can't send a raw mouse move to find out why): logged with the frame time, at most once a second
+void BigTurn(const wchar_t* what, float delta, float degrees) {
+    if (std::fabs(degrees) < 45.f) return;
+    static auto last = std::chrono::steady_clock::time_point{};
+    auto now = std::chrono::steady_clock::now();
+    if (now - last < std::chrono::seconds(1)) return;
+    last = now;
+    logx::Line(L"[camera] big mouse %s: delta %.1f -> %.1f deg in one frame (dt %.3f)", what, delta, degrees, g_frameDt);
+}
+
 bool MouseDelta(float& dx, float& dy) {
     UObject* pc = g_pc.Get();
     if (!pc || !g_mouseDelta) {
@@ -176,6 +188,7 @@ float __fastcall PitchAxisDetour(void* input, const uint8_t* command) {
         logx::Line(L"[camera] first mouse pitch: delta %.3f -> %.2f deg (+ stick %.2f; pitch speed %.1f, dt %.4f)", dy,
                    mouseDegrees, stickDegrees, speed, g_frameDt);
     }
+    BigTurn(L"pitch", dy, mouseDegrees);
     if (total == 0.f) return 0.f;
     if (!g_speedSwapped) {
         g_speedSwapped = true;
@@ -264,6 +277,7 @@ float __fastcall TurnDetour(void* component, float deadZone) {
                    degrees, speed, g_frameDt, turn, mouse);
     }
     *reinterpret_cast<float*>(comp + kIdleTime) = 0.f;      // the player is looking around: no recentring
+    BigTurn(L"turn", dx, degrees);
     return turn + mouse;
 }
 
