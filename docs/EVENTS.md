@@ -51,7 +51,8 @@ These are stable for other mods to use (positional arguments as listed).
 `CatSpawned` (actor), `CatStep` (the cat's mesh: a footstep), `CatLookPart` (a part of a cat's look built),
 `GameSaved` (context), `KeyDown` / `KeyUp` (_, key name - mouse buttons too), `MouseMove` (_, x, y),
 `MouseWheel` (_, notches), `AreaOverlap` (area, other, "1" entering / "0" leaving, ...),
-`HuntCaught` / `HuntMissed` / `PreyFlee` (prey, cat, ...), `SteamTextInput` (submitted, text), the sequencer:
+`HuntCaught` / `HuntMissed` / `PreyFlee` (prey, cat, ...), `HuntPounce` (prey, "1" the pounce walk starts / "0" the
+leap), `HuntSequenceEnd` (prey: the catch animation is over), `SteamTextInput` (submitted, text), the sequencer:
 `SequenceStarted` / `SequenceFinished` (manager, the sequence's id), `SequenceEnded`, `DialogueStarted` (manager, the
 dialogue's id), `DialogueNext`. Any other game function: `WaCa.Watch` (see API.md).
 
@@ -75,6 +76,9 @@ dialogue's id), `DialogueNext`. Any other game function: `WaCa.Watch` (see API.m
 | `DutiesJudged` | day, done, missed, standing |
 | `GatheringAnnounced` / `GatheringHeld` | day, chosen |
 | `PatrolOut` / `PatrolBack` | patrol id (+ cats, which stay in Clan Life) |
+| `RoleBound` | role key (`S:herbalist`), the cat's object path |
+| `roles.cast` (topic, sticky) | `{ ["S:<role>"] = the cat's object path }` - every mod role bound (`events.ini [Cast]`, `Events.BindRole`) |
+| `map.marks` (topic, sticky) | `{ [id] = label }` - the marks Clan Life put on the world map (hunting ground, border points, den, meeting place) |
 | `StoryVar` | name, value (a story variable changed) |
 | `WalkerMoves` | name, actor path, "home" / "away" (a camp's named cat sets off) |
 | `WalkerWalkTo` (send it) | actor path, X, Y, Z - that cat walks there, stays a while, walks home |
@@ -92,6 +96,7 @@ trigger your mod's code.
 | `CutsceneStarted` | name |
 | `CutsceneEnded` | name, why ("its End beat", "its last beat", "MaxSeconds", "unknown", "off" ...) |
 | `cutscene` (topic, sticky) | `{ playing, name }` |
+| `ShowLine` (send it) | text [, seconds] - a subtitle on screen outside a cutscene (default time: by its length) |
 
 ### WaCa Hunting
 | Event | Arguments |

@@ -97,6 +97,10 @@ WaCa.SetCatColor(cat, "Fur", WaCa.ParseColor("#EFE6D6"))
 WaCa.SetPartColor(cat, "Tail", "Fur", WaCa.ParseColor("#3E2B22"))
 WaCa.SetCatMask(cat, "Markings", "game:M12_Mask")        -- or a folder of PNG masks
 for _, cat in ipairs(WaCa.PlayerCats()) do ... end       -- the player's cat + the creation preview
+for _, c in ipairs(WaCa.Cats()) do ... end               -- the world's clan cats, nearest first:
+                                                         --   { actor, name, clan, giver, story, kind, dist }
+WaCa.CatName(cat)                                        -- a cat's name as the game shows it
+WaCa.PlayerName()                                        -- your cat's name
 WaCa.RebuildLook(comp)                                   -- the game rebuilds a cat's look (every mod's on top)
 ```
 The look is applied where the game builds it: `WaCa.On("CatLookPart", ...)` runs right after the game writes a colour
