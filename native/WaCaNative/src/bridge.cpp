@@ -799,6 +799,16 @@ int LuaHookHunt(const LuaMadeSimple::Lua& lua) {
     return 1;
 }
 
+// WaCaNative_HuntDetect(a BTService_DetectionTask's address, a detection component's address, type) -> true / false:
+// one pass of the game's own prey detection on that component (hunt.cpp - sight during the pounce walk)
+int LuaHuntDetect(const LuaMadeSimple::Lua& lua) {
+    auto service = static_cast<uintptr_t>(lua.get_integer());
+    auto component = static_cast<uintptr_t>(lua.get_integer());
+    int type = static_cast<int>(lua.get_integer());
+    lua.set_bool(hunt::Detect(reinterpret_cast<void*>(service), reinterpret_cast<void*>(component), type));
+    return 1;
+}
+
 // WaCaNative_AddExperience(level component address, amount) -> true / false: EXP the way the game adds it (hunt.cpp)
 int LuaAddExperience(const LuaMadeSimple::Lua& lua) {
     auto addr = static_cast<uintptr_t>(lua.get_integer());
@@ -970,6 +980,7 @@ void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
     lua.register_function("WaCaNative_DevReadInts", &LuaDevReadInts);
     lua.register_function("WaCaNative_HookPrey", &LuaHookPrey);
     lua.register_function("WaCaNative_HookHunt", &LuaHookHunt);
+    lua.register_function("WaCaNative_HuntDetect", &LuaHuntDetect);
     lua.register_function("WaCaNative_HookAreas", &LuaHookAreas);
     lua.register_function("WaCaNative_AddExperience", &LuaAddExperience);
     lua.register_function("WaCaNative_AddBond", &LuaAddBond);

@@ -11,6 +11,10 @@ void Configure(const std::wstring& command);
 void SetLoud(bool loud, double windowSeconds);
 // HuntFail|<prey full name>: the pounce under way on that prey fails (it spotted the cat during the walk)
 void Fail(const std::wstring& preyName);
+// one pass of the game's own prey detection (sight / sound / cone, as its AI runs it) on a detection component, while
+// the game has it off (the pounce walk): the function its behaviour-tree service UBTService_DetectionTask runs every
+// tick, found through a live service's vtable; false when the anchors disagree
+bool Detect(void* service, void* detectionComponent, int detectionType);
 // add EXP to a level component (USwtQuestLevelComponent, the player state's) the way the game does - its resource
 // "add value" virtual (level-ups included); false when the anchors disagree
 bool AddExperience(void* levelComponent, float amount);

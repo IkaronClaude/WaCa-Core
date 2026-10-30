@@ -24,6 +24,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <map>
 #include <mutex>
 #include <random>
@@ -327,6 +328,41 @@ bool HookFrom(void* preyComponent) {
              kSequenceFinishSlot, reinterpret_cast<void*>(&SequenceFinishDetour), reinterpret_cast<void**>(&g_sequenceFinish),
              L"hunted sequence finish");
     return ok;
+}
+
+// THE GAME'S DETECTION during the pounce walk (operator 2026-10-30: "ideally also sight"). The prey's AI runs its
+// detection in the behaviour-tree service UBTService_DetectionTask (DetectionType 7 / 15): the service's tick (its vtable
+// +0x310) takes the pawn's ExplorationDetectionComponent and calls one function, (component, bAllowCheat, &{type,
+// true}) - the detection pass itself (it walks the component's candidates and overlaps, by distance). When the pounce
+// walk starts the game sets the blackboard's Hunted and that branch has no detection service - the prey sees nothing
+// till the leap. Calling the same pass then keeps the game's own rules. Anchors: the tick's call follows
+// "mov byte ptr [rsp+3Ch], 1" (C6 44 24 3C 01 E8 rel32), and the target opens with "mov [rsp+10h], dl / push rbp /
+// push rsi / push rdi" (88 54 24 10 55 56 57).
+using DetectFn = void (*)(void* component, uint8_t allowCheat, void* type);
+DetectFn g_detect = nullptr;
+bool g_detectTried = false;
+
+bool Detect(void* service, void* detectionComponent, int detectionType) {
+    if (!g_detectTried && service) {
+        g_detectTried = true;
+        auto* tick = (*reinterpret_cast<uint8_t***>(service))[0x310 / 8];
+        static const uint8_t mark[] = {0xC6, 0x44, 0x24, 0x3C, 0x01, 0xE8};
+        static const uint8_t prologue[] = {0x88, 0x54, 0x24, 0x10, 0x55, 0x56, 0x57};
+        for (int i = 0; tick && i < 0x100 && !g_detect; ++i) {
+            if (IsBadReadPtr(tick + i, sizeof(mark) + 4) || memcmp(tick + i, mark, sizeof(mark)) != 0) continue;
+            auto* target = tick + i + sizeof(mark) + 4 + *reinterpret_cast<int32_t*>(tick + i + sizeof(mark));
+            if (!IsBadReadPtr(target, sizeof(prologue)) && memcmp(target, prologue, sizeof(prologue)) == 0) {
+                g_detect = reinterpret_cast<DetectFn>(target);
+            }
+        }
+        logx::Line(g_detect ? L"[hunt] the game's detection pass at %p (from the detection service's tick %p)"
+                            : L"[hunt] the detection service's tick %p doesn't call the pass we know - sight during the pounce OFF",
+                   g_detect ? reinterpret_cast<void*>(g_detect) : reinterpret_cast<void*>(tick), reinterpret_cast<void*>(tick));
+    }
+    if (!g_detect || !detectionComponent) return false;
+    struct { int32_t type; uint8_t set; uint8_t pad[3]; } type = {detectionType, 1, {0, 0, 0}};
+    g_detect(detectionComponent, 0, &type);
+    return true;
 }
 
 void Configure(const std::wstring& command) {
