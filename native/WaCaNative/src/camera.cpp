@@ -81,6 +81,11 @@ void* g_frameInput = nullptr;
 float g_frameDt = 0.f;
 // a lag spike's mouse jump (MouseDelta): a frame longer than this, a delta above this (mouse units - LookYaw 2 = 50 deg)
 constexpr float kSpikeDt = 0.1f, kSpikeDelta = 25.f;
+// Mouse look back on (a menu / overlay closed - collecting a herb shows one): the cursor is put back in the window's
+// middle, and that jump came in as one big mouse move - the camera spun round (operator 2026-10-30, "mainly when
+// collecting something"). The first frames after it comes back on take no mouse.
+std::atomic<unsigned> g_frameNo{0}, g_mouseFrom{0};
+constexpr unsigned kSettleFrames = 3;
 // the pitch speed swapped for this frame (restored after the update), see PitchAxisDetour
 bool g_speedSwapped = false;
 float g_savedPitchSpeed = 0.f;
@@ -110,6 +115,10 @@ bool MouseDelta(float& dx, float& dy) {
     pc->ProcessEvent(g_mouseDelta, &params);
     dx = params.x;
     dy = params.y;
+    if (g_frameNo.load() < g_mouseFrom.load()) {
+        dx = dy = 0.f;
+        return true;
+    }
     // A lag spike (a frame over 0.1 s - herb gathering): the delta it brings can be the cursor put back in the window,
     // not the hand - the camera spun round with the mouse barely moved (operator 2026-10-30). Such a jump in a long
     // frame is dropped (and logged); normal frames pass as they are.
@@ -198,6 +207,7 @@ void __fastcall UpdateDetour(void* component, void* input, float dt) {
     g_frameComponent = component;
     g_frameInput = input;
     g_frameDt = dt;
+    ++g_frameNo;
     g_update(component, input, dt);
     if (g_speedSwapped) {
         *reinterpret_cast<float*>(static_cast<uint8_t*>(component) + kPitchSpeed) = g_savedPitchSpeed;
@@ -299,6 +309,7 @@ void SetCameraRelativeMove(bool on) {
 void SetMouseLook(bool on, float yawScale, float pitchScale) {
     g_yawScale = yawScale;
     g_pitchScale = pitchScale;
+    if (on && !g_on.load()) g_mouseFrom = g_frameNo.load() + kSettleFrames;
     if (g_on.exchange(on) != on) logx::Line(L"[camera] mouse look %s (yaw %.3f, pitch %.3f per unit)", on ? L"on" : L"off", yawScale, pitchScale);
 }
 
