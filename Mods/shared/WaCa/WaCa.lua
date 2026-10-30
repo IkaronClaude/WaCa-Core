@@ -1096,4 +1096,7 @@ end
 -- a menu is up now (no screen at all = gameplay)
 function WaCa.InMenu() return WaCa.MenuShowing() == true end
 
+-- is this screen part of gameplay (the HUD, an overlay - not a menu)?
+function WaCa.IsGameplayScreen(screen) return isGameplayScreen(screen) end
+
 return WaCa
