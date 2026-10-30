@@ -125,4 +125,6 @@ widget's geometry can't be read from Lua), `WaCa.MouseOver(widget)` -> is the mo
 - React to events; don't poll (no timers that check every second).
 - Read game state from the game, don't guess it; log what your mod decides, so a player's UE4SS.log tells the story.
 - Never write the game's save with values the game doesn't know - keep your data in a sidecar.
+- Time: `WaCa.Now()` (real seconds, fractional). Not `os.clock()` - that is the process's CPU time and runs several
+  times faster than the wall in the game.
 - No game files in your mod's download (text, meshes, textures of the game): reuse them by path at runtime.

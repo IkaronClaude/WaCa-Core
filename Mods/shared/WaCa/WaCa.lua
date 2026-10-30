@@ -612,6 +612,25 @@ WaCa.On("GameSaved", function() saveStale = true end)
 -- the active character: "<save id>-<cat slot>". The cat slot is the save's own Shared.General.CurrentCatSlot (the
 -- character picked in "Select Your Cat"); the save game's CurrentSaveSlotIndex stayed 0 for every cat (VM 2026-10-28:
 -- a new cat in slot 8 read slot 0's cat - its day, its names, its rank)
+-- WaCa.Now() -> real seconds (the engine's real time, fractional; a menu or a pause doesn't stop it). NOT os.clock():
+-- that is the process's CPU time, which the game's many threads run 2-9x faster than the wall (VM 2026-10-30: a party
+-- cat's "0.05 s" step read 0.4 s - 8x too far).
+local nowStatics, nowCtx
+function WaCa.Now()
+    nowStatics = nowStatics or StaticFindObject("/Script/Engine.Default__GameplayStatics")
+    local ok, t = pcall(function()
+        if not (nowCtx and nowCtx:IsValid()) then
+            nowCtx = nil
+            for _, c in ipairs(FindAllOf("PlayerController") or {}) do
+                if c:IsValid() then nowCtx = c break end
+            end
+        end
+        return nowCtx and nowStatics:GetRealTimeSeconds(nowCtx)
+    end)
+    if ok and type(t) == "number" then return t end
+    return os.time()
+end
+
 function WaCa.CurrentSlot()
     local sm = FindFirstOf("SwtSaveManager")
     if not sm or not sm:IsValid() then return nil end
