@@ -14,6 +14,7 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -79,9 +80,80 @@ void __fastcall ReactDetour(void* preyPtr, void* characterPtr) {
     bridge::Emit("PreyFlee", {Narrow(prey->GetFullName()), Narrow(cat->GetFullName())});
 }
 
+// SMALL PREY STARTS NO FIGHT (operator 2026-10-30: a field mouse still fought back; 2026-10-27: "catch = instant on
+// touch; rats stay hostile"). Touching a prey creature starts the game's fight through its UFunction
+// ASwtAdventureCharacter::OnEncounterOverlap (a dynamic delegate -> ProcessEvent -> its native exec thunk). Its encounter
+// capsule's collision off didn't stop it (VM: the overlap still came). So the thunk is hooked: for the CharacterTypes Lua
+// lists the call is dropped - no fight; the catch stays the pounce. Called through ProcessEvent the frame is discarded
+// after the call, so not reading its parameters is safe.
+using ExecFn = void(__fastcall*)(UObject* context, void* stack, void* result);
+ExecFn g_encounter = nullptr;
+bool g_encounterTried = false;
+std::mutex g_peaceMutex;
+std::set<int> g_peace;                     // CharacterType values that start no fight
+
+void __fastcall EncounterDetour(UObject* context, void* stack, void* result) {
+    if (context) {
+        auto* type = context->GetValuePtrByPropertyNameInChain<uint8_t>(STR("CharacterType"));
+        if (type) {
+            bool calm;
+            {
+                std::lock_guard<std::mutex> lock(g_peaceMutex);
+                calm = g_peace.count(*type) > 0;
+            }
+            if (calm) {
+                static UObject* lastLogged = nullptr;
+                if (lastLogged != context) {
+                    lastLogged = context;
+                    logx::Line(L"[prey] %s (type %d) touched - no fight (small prey)", context->GetName().c_str(), *type);
+                }
+                return;
+            }
+        }
+    }
+    g_encounter(context, stack, result);
+}
+
+bool HookEncounter() {
+    if (g_encounterTried) return g_encounter != nullptr;
+    g_encounterTried = true;
+    auto* fn = UObjectGlobals::StaticFindObject<UFunction*>(nullptr, nullptr,
+        STR("/Script/SwtAdventure.SwtAdventureCharacter:OnEncounterOverlap"));
+    auto* thunk = fn ? reinterpret_cast<void*>(fn->GetFunc()) : nullptr;
+    if (!thunk) {
+        logx::Line(L"[prey] OnEncounterOverlap not found - small prey fights as the game has it");
+        return false;
+    }
+    bool ok = MH_CreateHook(thunk, reinterpret_cast<void*>(&EncounterDetour), reinterpret_cast<void**>(&g_encounter)) == MH_OK &&
+              MH_EnableHook(thunk) == MH_OK;
+    logx::Line(L"[prey] OnEncounterOverlap's thunk at %p%s", thunk, ok ? L" hooked" : L" - could not hook");
+    if (!ok) g_encounter = nullptr;
+    return ok;
+}
+
 }  // namespace
 
 namespace prey {
+
+void Peace(const std::wstring& types) {
+    size_t n = 0;
+    {
+        std::lock_guard<std::mutex> lock(g_peaceMutex);
+        g_peace.clear();
+        size_t start = 0;
+        while (start < types.size()) {
+            size_t end = types.find(L',', start);
+            std::wstring t = types.substr(start, end == std::wstring::npos ? std::wstring::npos : end - start);
+            if (!t.empty()) g_peace.insert(_wtoi(t.c_str()));
+            if (end == std::wstring::npos) break;
+            start = end + 1;
+        }
+        n = g_peace.size();
+    }
+    if (n > 0) HookEncounter();
+    logx::Line(L"[prey] %zu prey kinds start no fight when touched", n);
+}
+
 
 bool HookFrom(void* preyObject) {
     if (g_tried || !preyObject) return g_react != nullptr;

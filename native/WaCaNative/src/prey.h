@@ -7,4 +7,6 @@ namespace prey {
 bool HookFrom(void* preyObject);
 // PreyFlee|<0/1>|<comma separated size tags that keep the game's reaction>
 void Configure(bool on, const std::wstring& excludedTags);
+// PreyPeace|<comma separated CharacterType values>: those prey start no fight when touched (hooks OnEncounterOverlap)
+void Peace(const std::wstring& types);
 }
