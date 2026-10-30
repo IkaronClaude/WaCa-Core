@@ -76,10 +76,22 @@ dialogue's id), `DialogueNext`. Any other game function: `WaCa.Watch` (see API.m
 | `GatheringAnnounced` / `GatheringHeld` | day, chosen |
 | `PatrolOut` / `PatrolBack` | patrol id (+ cats, which stay in Clan Life) |
 | `StoryVar` | name, value (a story variable changed) |
+| `WalkerMoves` | name, actor path, "home" / "away" (a camp's named cat sets off) |
+| `WalkerWalkTo` (send it) | actor path, X, Y, Z - that cat walks there, stays a while, walks home |
+| `PlayScene` (send it) | step lines joined by `\|` (`Groups: Prey\|Wait: 3\|Release`) - a scene plays now |
+| `SetStoryVar` (send it) | name, value |
 | `clan.status` (topic, sticky) | `{ v = 1, day, third, stage, task, turnIn, title, where, activity, goal, got, need, done, text }` - the day at a glance (Clan Life shows it on the HUD) |
 
 A scene's `Emit: <event>` step sends `<event>` (with the scene's context table) - so a story written in ini files can
 trigger your mod's code.
+
+### WaCa Cutscenes
+| Event | Arguments |
+| --- | --- |
+| `PlayCutscene` (send it) | name - plays it (one at a time: queued while another plays) |
+| `CutsceneStarted` | name |
+| `CutsceneEnded` | name, why ("its End beat", "its last beat", "MaxSeconds", "unknown", "off" ...) |
+| `cutscene` (topic, sticky) | `{ playing, name }` |
 
 ### WaCa Hunting
 | Event | Arguments |
