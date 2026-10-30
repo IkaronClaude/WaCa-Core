@@ -609,9 +609,6 @@ local function saveData()
 end
 WaCa.On("GameSaved", function() saveStale = true end)
 
--- the active character: "<save id>-<cat slot>". The cat slot is the save's own Shared.General.CurrentCatSlot (the
--- character picked in "Select Your Cat"); the save game's CurrentSaveSlotIndex stayed 0 for every cat (VM 2026-10-28:
--- a new cat in slot 8 read slot 0's cat - its day, its names, its rank)
 -- WaCa.Now() -> real seconds (the engine's real time, fractional; a menu or a pause doesn't stop it). NOT os.clock():
 -- that is the process's CPU time, which the game's many threads run 2-9x faster than the wall (VM 2026-10-30: a party
 -- cat's "0.05 s" step read 0.4 s - 8x too far).
@@ -631,6 +628,9 @@ function WaCa.Now()
     return os.time()
 end
 
+-- the active character: "<save id>-<cat slot>". The cat slot is the save's own Shared.General.CurrentCatSlot (the
+-- character picked in "Select Your Cat"); the save game's CurrentSaveSlotIndex stayed 0 for every cat (VM 2026-10-28:
+-- a new cat in slot 8 read slot 0's cat - its day, its names, its rank)
 function WaCa.CurrentSlot()
     local sm = FindFirstOf("SwtSaveManager")
     if not sm or not sm:IsValid() then return nil end
@@ -799,6 +799,27 @@ end
 function WaCa.GameProgress()
     local character = WaCa.SaveCharacter()
     return character and character.GameplayProgression or nil
+end
+
+-- THE PARTY: the story's party for the character being played - its QuestProgression <chapter>.PartySetup, the cats on
+-- the pause menu's PARTY page besides your own: a list of ENarrativeRole names (RiverClanKit ...) from the latest
+-- chapter that sets one; {} = no party, nil = no save read yet. (The PARTY page is filled only when the pause menu opens;
+-- the save has it from the start - VM 2026-10-30: Nightheart = RiverClanKit, Rippleface = RiverClanWarriorSideRace.)
+function WaCa.PartyRoles()
+    local character = WaCa.SaveCharacter()
+    local quests = character and character.QuestProgression
+    if type(quests) ~= "table" then return nil end
+    local setup, chapterKey
+    for key, chapter in pairs(quests) do
+        if type(chapter) == "table" and type(chapter.PartySetup) == "table" and (not chapterKey or tostring(key) > chapterKey) then
+            setup, chapterKey = chapter.PartySetup, tostring(key)
+        end
+    end
+    local roles = {}
+    for _, e in ipairs(setup or {}) do
+        if type(e) == "table" and type(e.NarrativeRole) == "string" and e.NarrativeRole ~= "None" then roles[#roles + 1] = e.NarrativeRole end
+    end
+    return roles
 end
 
 -- a mod's sidecar file for a slot (the active one when slot is nil)

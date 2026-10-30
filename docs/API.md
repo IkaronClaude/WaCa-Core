@@ -60,6 +60,7 @@ WaCa.SaveCharacter()   -- that cat's record as the game last saved it (GameplayP
 WaCa.GameProgress()    -- its GameplayProgression
 WaCa.PlayerRank()      -- 1 Apprentice ... 4 Leader, and where from: 1 + the rank quests done, or a promotion just now
 WaCa.PlayerClan()      -- "RiverClan" ...: the cat in the world's, else the save's
+WaCa.PartyRoles()      -- the story's party (the PARTY page's cats): their ENarrativeRole names, from the save
 WaCa.Subscribe("player.rank", function(r) end)   -- { rank, name, slot, from } on load and on every promotion
 ```
 
