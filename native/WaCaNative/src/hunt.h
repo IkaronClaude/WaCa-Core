@@ -7,7 +7,7 @@ namespace hunt {
 bool HookFrom(void* preyComponent);
 // HuntRoll|<0/1>|<base chance %>|<critical miss %>|<CharacterType value>=<factor>,...
 void Configure(const std::wstring& command);
-// HuntLoud|<0/1>|<window s>: the cat entered / left loud ground (the game's Loud movement areas, from Lua)
+// HuntLoud: a no-op now (the landing no longer checks loud ground - the prey is already caught there)
 void SetLoud(bool loud, double windowSeconds);
 // add EXP to a level component (USwtQuestLevelComponent, the player state's) the way the game does - its resource
 // "add value" virtual (level-ups included); false when the anchors disagree

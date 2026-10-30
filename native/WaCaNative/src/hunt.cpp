@@ -1,6 +1,5 @@
 // Hunting by chance (tickets.md 9, operator 2026-10-27): the game's prey instakill always works; with HuntRoll on, the
-// moment the cat LANDS on the prey is rolled (and a cat on loud ground - the game's Loud movement areas, leaf litter -
-// or just off it is heard: the prey escapes, no roll; operator 2026-10-27) - chance = the cat's base chance (by rank, set from Lua) x the prey's
+// moment the cat LANDS on the prey is rolled - chance = the cat's base chance (by rank, set from Lua) x the prey's
 // factor (by its CharacterType, e.g. rabbit 0.5), never above 100% - critical miss. Only the CharacterTypes Lua lists
 // are rolled: NPC cats carry the same component for the game's sneak attack, which stays as it is. A miss skips the landing (no
 // hunted sequence - the prey carries on as the game makes it); a hit runs it. Both are Lua events: HuntCaught /
@@ -53,9 +52,6 @@ std::atomic<bool> g_on{false};
 std::mutex g_mutex;
 double g_base = 1.0;                       // the cat's chance before the prey's factor (1.0 = 100%)
 double g_critMiss = 0.05;
-std::atomic<bool> g_loud{false};
-std::atomic<long long> g_loudLeftMs{0};       // when the cat last left loud ground (steady ms)
-std::atomic<double> g_loudWindow{0.0};        // seconds after leaving that still count (0 = noise off)
 std::map<int, double> g_factors;           // CharacterType value -> factor (only these kinds are rolled)
 
 std::string Narrow(const std::wstring& w) {
@@ -102,13 +98,6 @@ void __fastcall LandedDetour(void* componentPtr, void* hit, void* characterPtr) 
         }
         chance = g_base * it->second;
     }
-    long long nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-    bool heard = g_loudWindow > 0 && (g_loud || nowMs - g_loudLeftMs < static_cast<long long>(g_loudWindow * 1000.0));
-    if (heard) {
-        logx::Line(L"[hunt] landed on %s (type %d) from loud ground - it heard the cat, missed", prey->GetName().c_str(), typeValue);
-        bridge::Emit("HuntMissed", {Narrow(prey->GetFullName()), Narrow(cat->GetFullName()), std::to_string(typeValue), "heard"});
-        return;
-    }
     {
         std::lock_guard<std::mutex> lock(g_mutex);
         if (chance > 1.0 - g_critMiss) chance = 1.0 - g_critMiss;
@@ -145,12 +134,9 @@ static_assert(sizeof(ExpElement) == 0x28, "the map's element");
 
 namespace hunt {
 
-void SetLoud(bool loud, double windowSeconds) {
-    g_loudWindow = windowSeconds;
-    if (!loud && g_loud)
-        g_loudLeftMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-    g_loud = loud;
-}
+// (no "heard on loud ground" at the landing any more: the landing spot is the prey's own - it is already caught then;
+// prey hear the cat the game's way before the pounce, operator 2026-10-30. The command stays a no-op for old Lua.)
+void SetLoud(bool, double) {}
 
 int CombatExperience(void* tuningManager, const std::wstring& kind) {
     if (!tuningManager) return -1;
