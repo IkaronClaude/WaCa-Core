@@ -30,7 +30,8 @@ Events between mods: [EVENTS.md](EVENTS.md).
 ## Menus or gameplay?
 `WaCa.InMenu()` is true while a menu is up (any screen that isn't the gameplay screen or an overlay over it, or a
 popup on the gameplay screen - the pause menu, the map). `WaCa.MenuShowing(leaving)` the same with `nil` while no
-screen is up at all (the frame or two between two screens).
+screen is up at all (the frame or two between two screens). `WaCa.IsGameplayScreen(screen)`: is that screen part of
+gameplay (the HUD, an overlay) rather than a menu.
 
 ## Text
 All of the game's text is one string table (`SwtStrings`, from `Gameplay/Strings/NonAsset/Strings_<LANG>.csv`).
