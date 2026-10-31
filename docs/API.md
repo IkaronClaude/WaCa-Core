@@ -103,9 +103,20 @@ for _, c in ipairs(WaCa.Cats()) do ... end               -- the world's clan cat
 WaCa.CatName(cat)                                        -- a cat's name as the game shows it
 WaCa.PlayerName()                                        -- your cat's name
 WaCa.RebuildLook(comp)                                   -- the game rebuilds a cat's look (every mod's on top)
+WaCa.CopyLook(to, from)                                  -- dress one cat as another (cats or look components)
 ```
 The look is applied where the game builds it: `WaCa.On("CatLookPart", ...)` runs right after the game writes a colour
 or mask to one part of a cat - put your value on the same part there and it is part of every rebuild.
+
+## The game's own scenes
+```lua
+WaCaNative_PlaySequence(FindFirstOf("SwtQuestSequencerManager"):GetAddress(), "Gameplay.Narrative.RankUp.RiverClan", 3, "")
+```
+plays a sequence the game registered under a tag (type 3: the narrative progression table - the rank-up ceremonies,
+`...RankUp.<Clan>` and `...RankUp.Leader`) through the sequencer manager's own play: placed and anchored the game's way,
+with its HOLD SKIP. Nothing of the game's rank-up runs (no promotion). Its cats are stand-ins the game dresses as the
+clan's cats when it starts (`WrcCatSkeletalMeshWithCustomization`: `Clan`, `GiverRole`, `Index`) - `WaCa.CopyLook` on
+them afterwards re-casts the scene; WaCa Cutscenes' `Scene =` does all of it.
 
 ## Menu keys
 `WaCa.SetUIKey("Button_B", "Escape")` replaces a menu's keyboard key; `WaCa.SetUIIcon("Button_B", "Escape")` only its
