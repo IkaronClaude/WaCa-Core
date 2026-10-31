@@ -104,6 +104,8 @@ WaCa.CatName(cat)                                        -- a cat's name as the 
 WaCa.PlayerName()                                        -- your cat's name
 WaCa.RebuildLook(comp)                                   -- the game rebuilds a cat's look (every mod's on top)
 WaCa.CopyLook(to, from)                                  -- dress one cat as another (cats or look components)
+WaCa.ZonePlace("I-")                                     -- the middle of one of the game's zones ("I-" the Island,
+                                                         --   "R-05" a camp, or a name id): { X, Y, Z } or nil
 ```
 The look is applied where the game builds it: `WaCa.On("CatLookPart", ...)` runs right after the game writes a colour
 or mask to one part of a cat - put your value on the same part there and it is part of every rebuild.

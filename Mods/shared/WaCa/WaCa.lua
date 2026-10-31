@@ -822,6 +822,29 @@ function WaCa.PartyRoles()
     return roles
 end
 
+-- a place from the game's own zone triggers (WrcZoneNameTrigger - the names the game shows as you walk in: "RiverClan
+-- Camp", "The Island"): the middle of the zone whose code starts with `match` ("I-", "R-05") or whose name id holds it
+-- ("STR_ISLAND_ZONE") - its area boxes; a zone with only a gate (the Island: one thin trigger where you step onto it)
+-- that. { X, Y, Z } or nil. (Loaded far from the cat too: VM 2026-10-31, the Island's from the RiverClan camp.)
+function WaCa.ZonePlace(match)
+    local sums = { area = { 0, 0, 0, 0 }, gate = { 0, 0, 0, 0 } }
+    for _, z in ipairs(FindAllOf("WrcZoneNameTrigger") or {}) do
+        pcall(function()
+            if not z:IsValid() then return end
+            local code, name = z.ZoneCode:ToString(), z.ZoneNameId:ToString()
+            if code:sub(1, #match) ~= match and not name:find(match, 1, true) then return end
+            local comp = z.DetectionComponent
+            local e = comp:GetScaledBoxExtent()
+            local c = comp:K2_GetComponentLocation()
+            local t = sums[math.min(e.X, e.Y) < 150 and "gate" or "area"]
+            t[1], t[2], t[3], t[4] = t[1] + 1, t[2] + c.X, t[3] + c.Y, t[4] + c.Z
+        end)
+    end
+    local t = sums.area[1] > 0 and sums.area or sums.gate
+    if t[1] == 0 then return nil end
+    return { X = t[2] / t[1], Y = t[3] / t[1], Z = t[4] / t[1] }
+end
+
 -- a mod's sidecar file for a slot (the active one when slot is nil)
 function WaCa.SlotFile(modName, slot)
     slot = slot or WaCa.CurrentSlot()
