@@ -65,6 +65,7 @@ dialogue's id), `DialogueNext`. Any other game function: `WaCa.Watch` (see API.m
 | `TimeSkipped` | days, fromDay, day |
 | `SeasonChanged` | season, previous |
 | `WeatherChanged` | weather, previous |
+| `SetWeather` (send it) | weather name (Clear, Overcast, Rain, Snow ...), hours - that weather now |
 | `WorldFactors` | hunt, fish (the season's x weather's multipliers) |
 | `TiredFactors` | hunt, damage (the cat's tiredness) |
 | `ClanThird` / `ClanNight` | day, third ("Morning", "Noon", "Evening" / "Night") |
