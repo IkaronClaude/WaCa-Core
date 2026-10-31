@@ -82,6 +82,7 @@ dialogue's id), `DialogueNext`. Any other game function: `WaCa.Watch` (see API.m
 | `map.marks` (topic, sticky) | `{ [id] = label }` - the marks Clan Life put on the world map (hunting ground, border points, den, meeting place) |
 | `StoryVar` | name, value (a story variable changed) |
 | `WalkerMoves` | name, actor path, "home" / "away" (a camp's named cat sets off) |
+| `NpcPatrol` (send it) | n - a patrol of n camp cats walks the border points and back (it stops when it meets you) |
 | `NpcHunt` (send it) | n - n of the camp's plain cats walk out to hunt (and back) |
 | `TemporaryParty` (send it) | n, why - n of the camp's plain cats walk with you (behind your party); 0 = they go home |
 | `WalkerWalkTo` (send it) | actor path, X, Y, Z - that cat walks there, stays a while, walks home |
