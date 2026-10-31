@@ -110,6 +110,7 @@ WaCa.StoryCats("ShadowClan", "Leader")                  -- the save's story cats
                                                          --   { key, name, clan, role, look } - look = the game's text form
 WaCa.ImportLook(cat, look)                               -- dress a cat from such a look
 WaCa.SpawnCat(look, at, yaw, scale) / WaCa.Despawn(cat)        -- an extra cat in the world (the game's cutscene cat, no AI)
+WaCa.HitMaterialName(hit[, slot])                        -- the material name on what a trace hit, or nil (null-safe)
 WaCa.LookOf(cat)                                         -- a cat's look as text (the form ImportLook / SpawnCat take)
 WaCa.BlendLooks(a, b)                                    -- a kit's look from two parents' looks (+ a kit name, + its scale for SpawnCat)
 ```

@@ -912,6 +912,22 @@ function WaCa.BlendLooks(a, b)
     return "(" .. table.concat(text, ",") .. ")", name, WaCa.KIT_SCALE
 end
 
+-- WHAT A TRACE HIT: the name of the material on the hit component's slot 0 (a trace's out-param `hit`), or nil.
+-- Every step checked - a method called on a null object is an access violation pcall cannot catch (VM 2026-10-31:
+-- the game died in a walker's ground check on a hit with no material).
+function WaCa.HitMaterialName(hit, slot)
+    local name
+    pcall(function()
+        local c = hit and hit.Component
+        if c and tostring(c):match("^FWeakObjectPtr") then c = c:Get() end
+        if not (c and c:IsValid()) then return end
+        local mat = c:GetMaterial(slot or 0)
+        if not (mat and mat:IsValid()) then return end
+        name = mat:GetFName():ToString()
+    end)
+    return name
+end
+
 -- AN EXTRA CAT in the world - one the game doesn't have here (another clan's at a Gathering, a mod's own cat): the
 -- game's own cutscene cat (BP_WrcSK_Customization_Cat - a standing cat with the full look system, no AI, no name plate)
 -- spawned at `at` facing `yaw`, dressed from a look's text form (WaCa.StoryCats' look) when given, `scale` times an
