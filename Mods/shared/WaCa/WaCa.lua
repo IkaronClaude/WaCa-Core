@@ -867,7 +867,10 @@ end
 
 -- A KIT'S LOOK from its parents' (romance + kits, tickets.md 12 - pre-work): each trait from one parent or the other
 -- (body, fur, colours, patterns, eyes, ears, tail ...), the first parent's clan, Role = Kit, kit-sized, a name of its
--- own (a prefix of the save's cats + "kit"). a, b = looks (text forms - WaCa.LookOf). Returns the look and the name.
+-- own (a prefix of the save's cats + "kit"). a, b = looks (text forms - WaCa.LookOf). Returns the look, the name and the
+-- kit's size as an actor scale (WaCa.SpawnCat's `scale`): the look's own CatSize does NOT size a cat in the world (VM
+-- 2026-10-31: CatSize 0.8 -> 2.5 + a look build / RefreshShape changed no bone; it feeds the creator preview's anim only).
+WaCa.KIT_SCALE = 0.6
 function WaCa.BlendLooks(a, b)
     local fa, fb = lookFields(a), lookFields(b)
     local other = {}
@@ -880,7 +883,7 @@ function WaCa.BlendLooks(a, b)
         if k == "Role" then v = "Kit"
         elseif k == "ClanType" or k == "PrefixNameId" or k == "SuffixNameId" then -- (below / the first parent's)
         elseif other[k] ~= nil and math.random() < 0.5 then v = other[k] end
-        if k == "CatSize" then v = string.format("%.6f", (tonumber(v) or 1) * 0.6) end
+        if k == "CatSize" then v = string.format("%.6f", (tonumber(v) or 1) * WaCa.KIT_SCALE) end
         parts[#parts + 1] = { k, v }
     end
     for _, f in ipairs(fb) do if not seen[f[1]] then parts[#parts + 1] = f end end
@@ -902,20 +905,21 @@ function WaCa.BlendLooks(a, b)
         if f[1] == "CatSize" then hasSize = true end
     end
     if not hasRole then parts[#parts + 1] = { "Role", "Kit" } end
-    if not hasSize then parts[#parts + 1] = { "CatSize", "0.600000" } end
+    if not hasSize then parts[#parts + 1] = { "CatSize", string.format("%.6f", WaCa.KIT_SCALE) } end
     local text = {}
     for _, f in ipairs(parts) do text[#text + 1] = f[1] .. "=" .. f[2] end
     local name = prefix and WaCa.GetText(prefix .. "_KIT") or nil
-    return "(" .. table.concat(text, ",") .. ")", name
+    return "(" .. table.concat(text, ",") .. ")", name, WaCa.KIT_SCALE
 end
 
 -- AN EXTRA CAT in the world - one the game doesn't have here (another clan's at a Gathering, a mod's own cat): the
 -- game's own cutscene cat (BP_WrcSK_Customization_Cat - a standing cat with the full look system, no AI, no name plate)
--- spawned at `at` facing `yaw`, dressed from a look's text form (WaCa.StoryCats' look) when given. Returns the actor
+-- spawned at `at` facing `yaw`, dressed from a look's text form (WaCa.StoryCats' look) when given, `scale` times an
+-- adult's size (1 when not given - a kit: BlendLooks' third value; the look's CatSize doesn't size it). Returns the actor
 -- (or nil); WaCa.Despawn(cat) removes it. Its path is the way to keep it (a held wrapper can go stale). VM 2026-10-31:
 -- Sunstar of ThunderClan standing by the RiverClan camp's stream.
 local CAT_CLASS = "/Game/Gameplay/Blueprints/Characters/BP_WrcSK_Customization_Cat.BP_WrcSK_Customization_Cat_C"
-function WaCa.SpawnCat(look, at, yaw)
+function WaCa.SpawnCat(look, at, yaw, scale)
     local cls = StaticFindObject(CAT_CLASS)
     if not (cls and cls:IsValid()) then
         WaCa.LoadAsset(CAT_CLASS:gsub("%.[^.]+$", ""))
@@ -925,7 +929,7 @@ function WaCa.SpawnCat(look, at, yaw)
     local gs = StaticFindObject("/Script/Engine.Default__GameplayStatics")
     local half = math.rad((yaw or 0) / 2)
     local tf = { Translation = { X = at.X, Y = at.Y, Z = at.Z }, Rotation = { X = 0, Y = 0, Z = math.sin(half), W = math.cos(half) },
-                 Scale3D = { X = 1, Y = 1, Z = 1 } }
+                 Scale3D = { X = scale or 1, Y = scale or 1, Z = scale or 1 } }
     local ctx
     pcall(function() ctx = FindFirstOf("PlayerController") end)
     local ok, cat = pcall(function()
