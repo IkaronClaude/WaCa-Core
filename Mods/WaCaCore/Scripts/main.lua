@@ -77,6 +77,17 @@ local function applyPlaceholderFixes()
     log("placeholder fixes: %d lines of %d", fixed, #keys)
 end
 
+-- config/text.ini [Fill] Fallback: a role a line names that this save has no cat for is shown in words, not braces
+-- (native: a hook on the game's own text fill - fill.cpp)
+local function applyFillFallback()
+    local ini = WaCa.ReadContent(modDir .. "/config/text.ini", "text") or {}
+    local on = ((ini["Fill"] or {}).Fallback or "1") ~= "0"
+    if not WaCaNative_TextFallback then return end
+    log("roles with no cat in this save: %s", WaCaNative_TextFallback(on) and (on and "shown in words" or "as the game has it")
+        or "the game's text fill wasn't found - as the game has it")
+end
+pcall(applyFillFallback)
+
 -- Dialogue text check (the game fills the role placeholders of its lines - {THE AGING LEADER}, {PLAYER} - from data,
 -- and some come out unfilled or as a number: "It seems that 1's Prophecy is true"). Every line, once shown in full
 -- (the conversation widget's OnTypewriterDone), is checked for a placeholder left in braces or a bare number where a

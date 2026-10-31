@@ -124,6 +124,11 @@ pile) on a screen - the HUD's `WBP_GuiHudGameWrc_C` in the world - the way a dia
 popup is driven with its own commands: `popup:OnListenCommand(command, 0, controller)` then `(command, 1, controller)`
 (pressed, released; `ECommands`: 1-4 the arrows, 6 Back, 9 / 10 ShoulderL / R, 26 Confirm).
 
+## The game's text fill
+`WaCaNative_FillText(text [, asShown])` -> the text as the game fills it in this save (its {PLAYER} / {Clan} / story
+role fill - every dialogue and quest line goes through it; asShown: with WaCa Core's fallback). text.ini `[Fill]
+Fallback = 1` (default): a role this save has no cat for is shown in words ("the ambitious apprentice"), not braces.
+
 ## Menu keys
 `WaCa.SetUIKey("Button_B", "Escape")` replaces a menu's keyboard key; `WaCa.SetUIIcon("Button_B", "Escape")` only its
 hint icon.

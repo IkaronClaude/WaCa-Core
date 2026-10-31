@@ -65,6 +65,7 @@
 #include "hunt.h"
 #include "sequences.h"
 #include "screens.h"
+#include "fill.h"
 #include "areas.h"
 #include "combat.h"
 #include "bonds.h"
@@ -846,6 +847,28 @@ int LuaOpenPopup(const LuaMadeSimple::Lua& lua) {
     return 1;
 }
 
+// WaCaNative_TextFallback(on) -> true / false: a role a line names that this save has no cat for is shown as its name
+// in words instead of "{THE ROLE}" (fill.cpp)
+int LuaTextFallback(const LuaMadeSimple::Lua& lua) {
+    lua.set_bool(fill::SetFallback(lua.get_bool()));
+    return 1;
+}
+
+// WaCaNative_FillText(text [, asShown]) -> the text as the game fills it in this save (its role / player / clan fill;
+// asShown: with the fallback for roles with no cat), or
+// nil when the anchors disagree (fill.cpp)
+int LuaFillText(const LuaMadeSimple::Lua& lua) {
+    std::wstring in = Wide(std::string(lua.get_string()));
+    bool asShown = lua.is_bool() ? lua.get_bool() : false;
+    std::wstring out;
+    if (!fill::Fill(in, out, asShown)) {
+        lua.set_nil();
+        return 1;
+    }
+    lua.set_string(Narrow(out));
+    return 1;
+}
+
 // WaCaNative_AddExperience(level component address, amount) -> true / false: EXP the way the game adds it (hunt.cpp)
 int LuaAddExperience(const LuaMadeSimple::Lua& lua) {
     auto addr = static_cast<uintptr_t>(lua.get_integer());
@@ -1031,6 +1054,8 @@ void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
     lua.register_function("WaCaNative_HuntDetect", &LuaHuntDetect);
     lua.register_function("WaCaNative_PlaySequence", &LuaPlaySequence);
     lua.register_function("WaCaNative_OpenPopup", &LuaOpenPopup);
+    lua.register_function("WaCaNative_FillText", &LuaFillText);
+    lua.register_function("WaCaNative_TextFallback", &LuaTextFallback);
     lua.register_function("WaCaNative_HookAreas", &LuaHookAreas);
     lua.register_function("WaCaNative_AddExperience", &LuaAddExperience);
     lua.register_function("WaCaNative_AddBond", &LuaAddBond);
