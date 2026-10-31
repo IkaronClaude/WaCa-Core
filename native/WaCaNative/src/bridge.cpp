@@ -63,6 +63,7 @@
 #include "appearance.h"
 #include "prey.h"
 #include "hunt.h"
+#include "sequences.h"
 #include "areas.h"
 #include "combat.h"
 #include "bonds.h"
@@ -809,6 +810,31 @@ int LuaHuntDetect(const LuaMadeSimple::Lua& lua) {
     return 1;
 }
 
+// WaCaNative_PlaySequence(sequencer manager address, tag, type, cast) -> true / false: one of the game's own scenes
+// (a rank-up ceremony: type 3, "Gameplay.Narrative.RankUp.<Clan>.<Rank>") played the game's way, with our cats in its
+// bindings - cast = "Binding=address;Binding=address" (sequences.cpp)
+int LuaPlaySequence(const LuaMadeSimple::Lua& lua) {
+    auto manager = static_cast<uintptr_t>(lua.get_integer());
+    std::wstring tag = Wide(std::string(lua.get_string()));
+    int type = static_cast<int>(lua.get_integer());
+    std::wstring list = lua.is_string() ? Wide(std::string(lua.get_string())) : L"";
+    std::vector<std::pair<std::wstring, void*>> cast;
+    size_t at = 0;
+    while (at < list.size()) {
+        size_t end = list.find(L';', at);
+        if (end == std::wstring::npos) end = list.size();
+        auto item = list.substr(at, end - at);
+        auto eq = item.find(L'=');
+        if (eq != std::wstring::npos && eq > 0) {
+            auto addr = std::wcstoull(item.c_str() + eq + 1, nullptr, 0);
+            if (addr) cast.emplace_back(item.substr(0, eq), reinterpret_cast<void*>(addr));
+        }
+        at = end + 1;
+    }
+    lua.set_bool(sequences::Play(reinterpret_cast<void*>(manager), tag, type, cast));
+    return 1;
+}
+
 // WaCaNative_AddExperience(level component address, amount) -> true / false: EXP the way the game adds it (hunt.cpp)
 int LuaAddExperience(const LuaMadeSimple::Lua& lua) {
     auto addr = static_cast<uintptr_t>(lua.get_integer());
@@ -981,6 +1007,7 @@ void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
     lua.register_function("WaCaNative_HookPrey", &LuaHookPrey);
     lua.register_function("WaCaNative_HookHunt", &LuaHookHunt);
     lua.register_function("WaCaNative_HuntDetect", &LuaHuntDetect);
+    lua.register_function("WaCaNative_PlaySequence", &LuaPlaySequence);
     lua.register_function("WaCaNative_HookAreas", &LuaHookAreas);
     lua.register_function("WaCaNative_AddExperience", &LuaAddExperience);
     lua.register_function("WaCaNative_AddBond", &LuaAddBond);
