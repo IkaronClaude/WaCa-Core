@@ -64,6 +64,7 @@
 #include "prey.h"
 #include "hunt.h"
 #include "sequences.h"
+#include "screens.h"
 #include "areas.h"
 #include "combat.h"
 #include "bonds.h"
@@ -836,6 +837,15 @@ int LuaPlaySequence(const LuaMadeSimple::Lua& lua) {
     return 1;
 }
 
+// WaCaNative_OpenPopup(a screen's address - the HUD's CurrentScreen, widget id) -> true / false: one of the game's
+// popups (EWidgetsIds: 86 = the fresh-kill pile) opened the way a dialogue's create-screen action opens it (screens.cpp)
+int LuaOpenPopup(const LuaMadeSimple::Lua& lua) {
+    auto screen = static_cast<uintptr_t>(lua.get_integer());
+    int id = static_cast<int>(lua.get_integer());
+    lua.set_bool(screens::OpenPopup(reinterpret_cast<void*>(screen), id));
+    return 1;
+}
+
 // WaCaNative_AddExperience(level component address, amount) -> true / false: EXP the way the game adds it (hunt.cpp)
 int LuaAddExperience(const LuaMadeSimple::Lua& lua) {
     auto addr = static_cast<uintptr_t>(lua.get_integer());
@@ -1020,6 +1030,7 @@ void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
     lua.register_function("WaCaNative_HookHunt", &LuaHookHunt);
     lua.register_function("WaCaNative_HuntDetect", &LuaHuntDetect);
     lua.register_function("WaCaNative_PlaySequence", &LuaPlaySequence);
+    lua.register_function("WaCaNative_OpenPopup", &LuaOpenPopup);
     lua.register_function("WaCaNative_HookAreas", &LuaHookAreas);
     lua.register_function("WaCaNative_AddExperience", &LuaAddExperience);
     lua.register_function("WaCaNative_AddBond", &LuaAddBond);

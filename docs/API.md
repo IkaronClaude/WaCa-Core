@@ -118,6 +118,12 @@ with its HOLD SKIP. Nothing of the game's rank-up runs (no promotion). Its cats 
 clan's cats when it starts (`WrcCatSkeletalMeshWithCustomization`: `Clan`, `GiverRole`, `Index`) - `WaCa.CopyLook` on
 them afterwards re-casts the scene; WaCa Cutscenes' `Scene =` does all of it.
 
+## The game's popups
+`WaCaNative_OpenPopup(screen:GetAddress(), id)` opens one of the game's popups (`EWidgetsIds`: 86 = the fresh-kill
+pile) on a screen - the HUD's `WBP_GuiHudGameWrc_C` in the world - the way a dialogue's create-screen action does. A
+popup is driven with its own commands: `popup:OnListenCommand(command, 0, controller)` then `(command, 1, controller)`
+(pressed, released; `ECommands`: 1-4 the arrows, 6 Back, 9 / 10 ShoulderL / R, 26 Confirm).
+
 ## Menu keys
 `WaCa.SetUIKey("Button_B", "Escape")` replaces a menu's keyboard key; `WaCa.SetUIIcon("Button_B", "Escape")` only its
 hint icon.
