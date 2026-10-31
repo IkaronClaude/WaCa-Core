@@ -100,6 +100,7 @@ trigger your mod's code.
 | `CutsceneStarted` | name |
 | `CutsceneEnded` | name, why ("its End beat", "its last beat", "MaxSeconds", "unknown", "off" ...) |
 | `cutscene` (topic, sticky) | `{ playing, name }` |
+| `SkipCutscene` (send it) | - the playing cutscene ends now (as at its End beat) |
 | `ShowLine` (send it) | text [, seconds] - a subtitle on screen outside a cutscene (default time: by its length) |
 
 ### WaCa Hunting
