@@ -923,8 +923,37 @@ int LuaRebuildLook(const LuaMadeSimple::Lua& lua) {
 int LuaCopyLook(const LuaMadeSimple::Lua& lua) {
     auto* to = reinterpret_cast<UObject*>(static_cast<uintptr_t>(lua.get_integer()));
     auto* from = reinterpret_cast<UObject*>(static_cast<uintptr_t>(lua.get_integer()));
-    void* data = from ? from->GetValuePtrByPropertyName(STR("CustomData")) : nullptr;
+    void* data = nullptr;
+    if (from) {
+        auto* prop = from->GetPropertyByNameInChain(STR("CustomData"));
+        data = prop ? prop->ContainerPtrToValuePtr<void>(from) : nullptr;
+    }
     lua.set_bool(to && data && appearance::Rebuild(to, data));
+    return 1;
+}
+
+// WaCaNative_ImportLook(look component's address, text) -> true / false: the component's CustomData read from the
+// game's own text form of it - "(ClanType=ShadowClan,Role=Leader,BodyValue=6,...)", as the save keeps every story
+// cat's look (NPCData.NarrativeRoles) - then the whole look built from it: a stand-in dressed as a cat that isn't in
+// the world (another clan's, at a Gathering)
+int LuaImportLook(const LuaMadeSimple::Lua& lua) {
+    auto* comp = reinterpret_cast<UObject*>(static_cast<uintptr_t>(lua.get_integer()));
+    std::wstring text = Wide(std::string(lua.get_string()));
+    bool ok = false;
+    if (comp) {
+        auto* prop = comp->GetPropertyByNameInChain(STR("CustomData"));
+        // (a stand-in's look component - a subclass: found in the chain, not by name - VM 2026-10-31)
+        void* data = prop ? prop->ContainerPtrToValuePtr<void>(comp) : nullptr;
+        const TCHAR* end = nullptr;
+        if (prop && data) {
+            end = prop->ImportText(text.c_str(), data, 0, comp, nullptr);
+            ok = end != nullptr && appearance::Rebuild(comp, data);
+        }
+        if (!ok)
+            logx::Line(L"[look] import into %s: property %p, data %p, text read %s, rebuilt %s", comp->GetName().c_str(), prop, data,
+                       end ? L"yes" : L"NO", ok ? L"yes" : L"no");
+    }
+    lua.set_bool(ok);
     return 1;
 }
 
@@ -1038,6 +1067,7 @@ void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
     lua.register_function("WaCaNative_DevDelegate", &LuaDevDelegate);
     lua.register_function("WaCaNative_RebuildLook", &LuaRebuildLook);
     lua.register_function("WaCaNative_CopyLook", &LuaCopyLook);
+    lua.register_function("WaCaNative_ImportLook", &LuaImportLook);
     lua.register_function("WaCaNative_CloneTableRow", &LuaCloneTableRow);
     lua.register_function("WaCaNative_WidgetRect", &LuaWidgetRect);
     lua.register_function("WaCaNative_CursorPos", &LuaCursorPos);

@@ -106,6 +106,10 @@ WaCa.RebuildLook(comp)                                   -- the game rebuilds a 
 WaCa.CopyLook(to, from)                                  -- dress one cat as another (cats or look components)
 WaCa.ZonePlace("I-")                                     -- the middle of one of the game's zones ("I-" the Island,
                                                          --   "R-05" a camp, or a name id): { X, Y, Z } or nil
+WaCa.StoryCats("ShadowClan", "Leader")                  -- the save's story cats of a clan / part (any clan):
+                                                         --   { key, name, clan, role, look } - look = the game's text form
+WaCa.ImportLook(cat, look)                               -- dress a cat from such a look
+WaCa.SpawnCat(look, at, yaw) / WaCa.Despawn(cat)        -- an extra cat in the world (the game's cutscene cat, no AI)
 ```
 The look is applied where the game builds it: `WaCa.On("CatLookPart", ...)` runs right after the game writes a colour
 or mask to one part of a cat - put your value on the same part there and it is part of every rebuild.

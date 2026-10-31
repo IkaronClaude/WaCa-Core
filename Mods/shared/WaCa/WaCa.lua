@@ -178,6 +178,10 @@ function WaCa.CatComponent(actor)
     meshCompClass = meshCompClass or StaticFindObject("/Script/SwtAdventure.SwtAdventureCustomizableMeshComponent")
     local ok, comp = pcall(function() return actor:GetComponentByClass(meshCompClass) end)
     if ok and comp and comp:IsValid() then return comp end
+    -- (a cutscene stand-in - WrcCatSkeletalMeshWithCustomization - idle outside its scene: its look component isn't
+    -- found by class, its MeshCustomizationComponent field holds it: VM 2026-10-31)
+    ok, comp = pcall(function() return actor.MeshCustomizationComponent end)
+    if ok and comp and comp:IsValid() then return comp end
     return nil
 end
 
@@ -799,6 +803,72 @@ end
 function WaCa.GameProgress()
     local character = WaCa.SaveCharacter()
     return character and character.GameplayProgression or nil
+end
+
+-- THE SAVE'S STORY CATS of any clan - every narrative role's cat the game made for this character, the other clans'
+-- included (NPCData.NarrativeRoles: "Squirrelstar" = "(ClanType=ThunderClan,Role=Leader,BodyValue=...)" - the game's
+-- own text form of a cat's look). WaCa.StoryCats("ShadowClan", "Leader") -> { { key, name, clan, role, look } ... }
+-- (clan / role nil = any). The look text goes to WaCa.ImportLook. {} when no save is read yet.
+function WaCa.StoryCats(clan, role)
+    local character = WaCa.SaveCharacter()
+    local roles = character and character.NPCData and character.NPCData.NarrativeRoles
+    local out = {}
+    if type(roles) ~= "table" then return out end
+    for key, look in pairs(roles) do
+        if type(look) == "string" then
+            local c, r = look:match("ClanType=(%w+)"), look:match("Role=(%w+)")
+            if (not clan or c == clan) and (not role or r == role) then
+                local prefix, suffix = look:match('PrefixNameId="([^"]*)"'), look:match('SuffixNameId="([^"]*)"')
+                local name = prefix and WaCa.GetText(prefix .. (suffix or "")) or ""
+                if name == "" or name:find("^STR_") then name = tostring(key) end
+                out[#out + 1] = { key = tostring(key), name = name, clan = c, role = r, look = look }
+            end
+        end
+    end
+    table.sort(out, function(x, y) return x.key < y.key end)
+    return out
+end
+
+-- dress a cat (or its look component) from a look's text form (WaCa.StoryCats' look): the game builds its whole look
+-- from it. False without WaCa Core's native part.
+function WaCa.ImportLook(cat, text)
+    local comp = cat and cat:IsValid() and (cat:IsA(StaticFindObject("/Script/SwtAdventure.SwtAdventureCustomizableMeshComponent")) and cat
+                 or WaCa.CatComponent(cat))
+    if not WaCaNative_ImportLook or not comp or not text then return false end
+    return WaCaNative_ImportLook(comp:GetAddress(), text)
+end
+
+-- AN EXTRA CAT in the world - one the game doesn't have here (another clan's at a Gathering, a mod's own cat): the
+-- game's own cutscene cat (BP_WrcSK_Customization_Cat - a standing cat with the full look system, no AI, no name plate)
+-- spawned at `at` facing `yaw`, dressed from a look's text form (WaCa.StoryCats' look) when given. Returns the actor
+-- (or nil); WaCa.Despawn(cat) removes it. Its path is the way to keep it (a held wrapper can go stale). VM 2026-10-31:
+-- Sunstar of ThunderClan standing by the RiverClan camp's stream.
+local CAT_CLASS = "/Game/Gameplay/Blueprints/Characters/BP_WrcSK_Customization_Cat.BP_WrcSK_Customization_Cat_C"
+function WaCa.SpawnCat(look, at, yaw)
+    local cls = StaticFindObject(CAT_CLASS)
+    if not (cls and cls:IsValid()) then
+        WaCa.LoadAsset(CAT_CLASS:gsub("%.[^.]+$", ""))
+        cls = StaticFindObject(CAT_CLASS)
+    end
+    if not (cls and cls:IsValid()) or not at then return nil end
+    local gs = StaticFindObject("/Script/Engine.Default__GameplayStatics")
+    local half = math.rad((yaw or 0) / 2)
+    local tf = { Translation = { X = at.X, Y = at.Y, Z = at.Z }, Rotation = { X = 0, Y = 0, Z = math.sin(half), W = math.cos(half) },
+                 Scale3D = { X = 1, Y = 1, Z = 1 } }
+    local ctx
+    pcall(function() ctx = FindFirstOf("PlayerController") end)
+    local ok, cat = pcall(function()
+        local a = gs:BeginDeferredActorSpawnFromClass(ctx, cls, tf, 1, nil, 2)   -- (always spawn; the root's own scale)
+        if a and a:IsValid() then gs:FinishSpawningActor(a, tf, 2) end
+        return a
+    end)
+    if not (ok and cat and cat:IsValid()) then return nil end
+    if look then WaCa.ImportLook(cat, look) end
+    return cat
+end
+
+function WaCa.Despawn(cat)
+    if cat and pcall(function() return cat:IsValid() end) and cat:IsValid() then pcall(function() cat:K2_DestroyActor() end) end
 end
 
 -- THE PARTY: the story's party for the character being played - its QuestProgression <chapter>.PartySetup, the cats on
