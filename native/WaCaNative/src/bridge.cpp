@@ -957,6 +957,24 @@ int LuaImportLook(const LuaMadeSimple::Lua& lua) {
     return 1;
 }
 
+// WaCaNative_ExportLook(look component's address) -> its CustomData in the game's own text form
+// ("(ClanType=RiverClan,BodyValue=6,...)" - what ImportLook reads), or nil
+int LuaExportLook(const LuaMadeSimple::Lua& lua) {
+    auto* comp = reinterpret_cast<UObject*>(static_cast<uintptr_t>(lua.get_integer()));
+    if (comp) {
+        auto* prop = comp->GetPropertyByNameInChain(STR("CustomData"));
+        void* data = prop ? prop->ContainerPtrToValuePtr<void>(comp) : nullptr;
+        if (data) {
+            FString out;
+            prop->ExportTextItem_Direct(out, data, nullptr, comp, 0);
+            lua.set_string(Narrow(*out ? *out : STR("")));
+            return 1;
+        }
+    }
+    lua.set_nil();
+    return 1;
+}
+
 // WaCaNative_WidgetRect(a UMG widget's address) -> left, top, right, bottom in desktop pixels (Slate's absolute space),
 // or nil: where the widget was last drawn. FGeometry keeps everything in fields reflection doesn't see (its UE 5.7
 // layout: Size 0x0, Scale 0x8, AbsolutePosition 0xC, Position 0x14, AccumulatedRenderTransform 0x1C = a 2x2 matrix +
@@ -1068,6 +1086,7 @@ void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
     lua.register_function("WaCaNative_RebuildLook", &LuaRebuildLook);
     lua.register_function("WaCaNative_CopyLook", &LuaCopyLook);
     lua.register_function("WaCaNative_ImportLook", &LuaImportLook);
+    lua.register_function("WaCaNative_ExportLook", &LuaExportLook);
     lua.register_function("WaCaNative_CloneTableRow", &LuaCloneTableRow);
     lua.register_function("WaCaNative_WidgetRect", &LuaWidgetRect);
     lua.register_function("WaCaNative_CursorPos", &LuaCursorPos);

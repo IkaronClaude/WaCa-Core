@@ -838,6 +838,77 @@ function WaCa.ImportLook(cat, text)
     return WaCaNative_ImportLook(comp:GetAddress(), text)
 end
 
+-- a cat's look in the game's own text form ("(ClanType=RiverClan,BodyValue=6,...)") - what ImportLook / SpawnCat take
+function WaCa.LookOf(cat)
+    local comp = cat and cat:IsValid() and (cat:IsA(StaticFindObject("/Script/SwtAdventure.SwtAdventureCustomizableMeshComponent")) and cat
+                 or WaCa.CatComponent(cat))
+    if not WaCaNative_ExportLook or not comp then return nil end
+    return WaCaNative_ExportLook(comp:GetAddress())
+end
+
+-- a look's text form split into its fields, in order: { { key, value } ... } (values may hold brackets / quotes)
+local function lookFields(text)
+    local body = tostring(text or ""):match("^%s*%((.*)%)%s*$") or ""
+    local out, depth, quoted, start = {}, 0, false, 1
+    for i = 1, #body + 1 do
+        local ch = body:sub(i, i)
+        if ch == '"' then quoted = not quoted
+        elseif not quoted and ch == "(" then depth = depth + 1
+        elseif not quoted and ch == ")" then depth = depth - 1
+        elseif (ch == "," and depth == 0 and not quoted) or i > #body then
+            local part = body:sub(start, i - 1)
+            local k, v = part:match("^%s*([%w_]+)=(.*)$")
+            if k then out[#out + 1] = { k, v } end
+            start = i + 1
+        end
+    end
+    return out
+end
+
+-- A KIT'S LOOK from its parents' (romance + kits, tickets.md 12 - pre-work): each trait from one parent or the other
+-- (body, fur, colours, patterns, eyes, ears, tail ...), the first parent's clan, Role = Kit, kit-sized, a name of its
+-- own (a prefix of the save's cats + "kit"). a, b = looks (text forms - WaCa.LookOf). Returns the look and the name.
+function WaCa.BlendLooks(a, b)
+    local fa, fb = lookFields(a), lookFields(b)
+    local other = {}
+    for _, f in ipairs(fb) do other[f[1]] = f[2] end
+    local parts = {}
+    local seen = {}
+    for _, f in ipairs(fa) do
+        local k, v = f[1], f[2]
+        seen[k] = true
+        if k == "Role" then v = "Kit"
+        elseif k == "ClanType" or k == "PrefixNameId" or k == "SuffixNameId" then -- (below / the first parent's)
+        elseif other[k] ~= nil and math.random() < 0.5 then v = other[k] end
+        if k == "CatSize" then v = string.format("%.6f", (tonumber(v) or 1) * 0.6) end
+        parts[#parts + 1] = { k, v }
+    end
+    for _, f in ipairs(fb) do if not seen[f[1]] then parts[#parts + 1] = f end end
+    -- (a name of its own: a prefix one of the save's story cats has, not the parents' - "...kit")
+    local used = {}
+    for _, f in ipairs(fa) do if f[1] == "PrefixNameId" then used[f[2]] = true end end
+    for _, f in ipairs(fb) do if f[1] == "PrefixNameId" then used[f[2]] = true end end
+    local prefixes = {}
+    for _, c in ipairs(WaCa.StoryCats()) do
+        local p = c.look:match('PrefixNameId="([^"]*)"')
+        if p and p ~= "" and not used['"' .. p .. '"'] then prefixes[#prefixes + 1] = p end
+    end
+    local prefix = #prefixes > 0 and prefixes[math.random(#prefixes)] or nil
+    local hasRole, hasSize = false, false
+    for _, f in ipairs(parts) do
+        if f[1] == "PrefixNameId" and prefix then f[2] = '"' .. prefix .. '"' end
+        if f[1] == "SuffixNameId" then f[2] = '"_KIT"' end
+        if f[1] == "Role" then hasRole = true end
+        if f[1] == "CatSize" then hasSize = true end
+    end
+    if not hasRole then parts[#parts + 1] = { "Role", "Kit" } end
+    if not hasSize then parts[#parts + 1] = { "CatSize", "0.600000" } end
+    local text = {}
+    for _, f in ipairs(parts) do text[#text + 1] = f[1] .. "=" .. f[2] end
+    local name = prefix and WaCa.GetText(prefix .. "_KIT") or nil
+    return "(" .. table.concat(text, ",") .. ")", name
+end
+
 -- AN EXTRA CAT in the world - one the game doesn't have here (another clan's at a Gathering, a mod's own cat): the
 -- game's own cutscene cat (BP_WrcSK_Customization_Cat - a standing cat with the full look system, no AI, no name plate)
 -- spawned at `at` facing `yaw`, dressed from a look's text form (WaCa.StoryCats' look) when given. Returns the actor
