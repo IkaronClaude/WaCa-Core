@@ -8,5 +8,7 @@ namespace sequences {
 // play the sequence registered under a tag, of a sequencer type (ESwtEngineSequencerType: 3 = narrative progression,
 // the ceremonies), through the sequencer manager's own play - with replacements: a binding's name -> one of our
 // actors in its place (the game's ActorsReplaced). False when the anchors disagree.
-bool Play(void* manager, const std::wstring& tag, int type, const std::vector<std::pair<std::wstring, void*>>& cast);
+// music: the scene's music event (the game's: mus_cutscene_rankup_<Clan> / _leader, mus_moonpool_a), or empty
+bool Play(void* manager, const std::wstring& tag, int type, const std::vector<std::pair<std::wstring, void*>>& cast,
+          const std::wstring& music = L"");
 }

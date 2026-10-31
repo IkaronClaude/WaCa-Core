@@ -4,7 +4,7 @@
 // float, r9 = &finish delegate), which loads the sequence registered under the tag (RegisteredSequences, by type) and
 // plays it anchored the game's way. The params (0x88, from the rank-up caller 0x1418a8390 and the copy constructor
 // 0x1412b3ba0 in the dump's exe):
-//   +0x00 three flag bytes   +0x08 FString (music)   +0x18 float play rate (1)   +0x1C float   +0x20 int32
+//   +0x00 three flag bytes   +0x08 FString (the music event)   +0x18 float play rate (1)   +0x1C float   +0x20 int32
 //   +0x28 TMap<FName, TWeakObjectPtr<AActor>> - binding name -> actor in its place (FSwtActiveSequenceStruct's
 //         ActorsReplaced; the game passes it empty)   +0x78 bool   +0x7C int32 sequencer type   +0x80 FGameplayTag
 // Anchors: the slot's function reads the tag and the type straight from the params (mov r8, [rdx+80h] / mov edx,
@@ -145,7 +145,8 @@ bool BuildVtable() {
 using PlayFn = void (*)(void* manager, Params* params, float* blend, Delegate* onStarted);
 }  // namespace
 
-bool Play(void* manager, const std::wstring& tag, int type, const std::vector<std::pair<std::wstring, void*>>& cast) {
+bool Play(void* manager, const std::wstring& tag, int type, const std::vector<std::pair<std::wstring, void*>>& cast,
+          const std::wstring& music) {
     if (!manager || tag.empty()) return false;
     auto* fn = (*reinterpret_cast<uint8_t***>(manager))[kPlaySlot / 8];
     if (!fn || !scan::BodyContains(fn, "4C 8B 82 80 00 00 00", 1) || !scan::BodyContains(fn, "8B 52 7C", 1)) {
@@ -160,6 +161,14 @@ bool Play(void* manager, const std::wstring& tag, int type, const std::vector<st
     p.FirstFreeIndex = -1;
     p.Type = type;
     p.Tag = FName(tag.c_str(), FNAME_Add);
+    // the music: an FString { data, num (with its NUL), max } in the engine's memory - copied by the manager, ours freed
+    if (!music.empty()) {
+        auto n = static_cast<int32_t>(music.size() + 1);
+        auto* text = static_cast<wchar_t*>(FMemory::Malloc(sizeof(wchar_t) * n));
+        std::memcpy(text, music.c_str(), sizeof(wchar_t) * n);
+        p.MusicData = text;
+        p.MusicNum = p.MusicMax = n;
+    }
     // the cast: one bucket (HashSize 1) chaining every element - a valid set the engine copies with its own TSet copy
     int n = 0;
     for (auto& c : cast) if (c.second) ++n;
@@ -197,7 +206,9 @@ bool Play(void* manager, const std::wstring& tag, int type, const std::vector<st
     FMemory::Free(started.Instance);
     // the manager took a copy (its own TSet copy into the async play) - ours is freed here, the game's way
     if (p.Data) FMemory::Free(p.Data);
-    logx::Line(L"[sequences] play %s (type %d), %d cast", tag.c_str(), type, n);
+    if (p.MusicData) FMemory::Free(p.MusicData);
+    logx::Line(L"[sequences] play %s (type %d), %d cast%s%s", tag.c_str(), type, n, music.empty() ? L"" : L", music ",
+               music.c_str());
     return true;
 }
 }  // namespace sequences

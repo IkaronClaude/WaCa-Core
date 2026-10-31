@@ -810,7 +810,7 @@ int LuaHuntDetect(const LuaMadeSimple::Lua& lua) {
     return 1;
 }
 
-// WaCaNative_PlaySequence(sequencer manager address, tag, type, cast) -> true / false: one of the game's own scenes
+// WaCaNative_PlaySequence(sequencer manager address, tag, type, cast [, music event]) -> true / false: one of the game's own scenes
 // (a rank-up ceremony: type 3, "Gameplay.Narrative.RankUp.<Clan>.<Rank>") played the game's way, with our cats in its
 // bindings - cast = "Binding=address;Binding=address" (sequences.cpp)
 int LuaPlaySequence(const LuaMadeSimple::Lua& lua) {
@@ -831,7 +831,8 @@ int LuaPlaySequence(const LuaMadeSimple::Lua& lua) {
         }
         at = end + 1;
     }
-    lua.set_bool(sequences::Play(reinterpret_cast<void*>(manager), tag, type, cast));
+    std::wstring music = lua.is_string() ? Wide(std::string(lua.get_string())) : L"";
+    lua.set_bool(sequences::Play(reinterpret_cast<void*>(manager), tag, type, cast, music));
     return 1;
 }
 
