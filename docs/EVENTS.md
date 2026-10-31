@@ -82,6 +82,7 @@ dialogue's id), `DialogueNext`. Any other game function: `WaCa.Watch` (see API.m
 | `map.marks` (topic, sticky) | `{ [id] = label }` - the marks Clan Life put on the world map (hunting ground, border points, den, meeting place) |
 | `StoryVar` | name, value (a story variable changed) |
 | `WalkerMoves` | name, actor path, "home" / "away" (a camp's named cat sets off) |
+| `TemporaryParty` (send it) | n, why - n of the camp's plain cats walk with you (behind your party); 0 = they go home |
 | `WalkerWalkTo` (send it) | actor path, X, Y, Z - that cat walks there, stays a while, walks home |
 | `PlayScene` (send it) | step lines joined by `\|` (`Groups: Prey\|Wait: 3\|Release`) - a scene plays now |
 | `SetStoryVar` (send it) | name, value |
