@@ -884,6 +884,16 @@ int LuaRebuildLook(const LuaMadeSimple::Lua& lua) {
     return 1;
 }
 
+// WaCaNative_CopyLook(to look component's address, from look component's address) -> true / false: the game builds
+// one cat's whole look from ANOTHER cat's data (its CustomData) - a ceremony's stand-in dressed as the cat we cast
+int LuaCopyLook(const LuaMadeSimple::Lua& lua) {
+    auto* to = reinterpret_cast<UObject*>(static_cast<uintptr_t>(lua.get_integer()));
+    auto* from = reinterpret_cast<UObject*>(static_cast<uintptr_t>(lua.get_integer()));
+    void* data = from ? from->GetValuePtrByPropertyName(STR("CustomData")) : nullptr;
+    lua.set_bool(to && data && appearance::Rebuild(to, data));
+    return 1;
+}
+
 // WaCaNative_WidgetRect(a UMG widget's address) -> left, top, right, bottom in desktop pixels (Slate's absolute space),
 // or nil: where the widget was last drawn. FGeometry keeps everything in fields reflection doesn't see (its UE 5.7
 // layout: Size 0x0, Scale 0x8, AbsolutePosition 0xC, Position 0x14, AccumulatedRenderTransform 0x1C = a 2x2 matrix +
@@ -993,6 +1003,7 @@ void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
     lua.register_function("WaCaNative_Command", &LuaCommand);
     lua.register_function("WaCaNative_DevDelegate", &LuaDevDelegate);
     lua.register_function("WaCaNative_RebuildLook", &LuaRebuildLook);
+    lua.register_function("WaCaNative_CopyLook", &LuaCopyLook);
     lua.register_function("WaCaNative_CloneTableRow", &LuaCloneTableRow);
     lua.register_function("WaCaNative_WidgetRect", &LuaWidgetRect);
     lua.register_function("WaCaNative_CursorPos", &LuaCursorPos);

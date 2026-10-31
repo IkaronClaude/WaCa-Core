@@ -1002,6 +1002,18 @@ function WaCa.RebuildLook(comp)
     return WaCaNative_RebuildLook(comp:GetAddress())
 end
 
+-- dress one cat as another: the game builds the whole look of `to` from `from`'s data (colours, patterns, markings,
+-- shape) - e.g. a ceremony's stand-in as the cat cast in its part. Cats or their look components. False without WaCa
+-- Core's native part.
+function WaCa.CopyLook(to, from)
+    local t = to and to:IsValid() and (to:IsA(StaticFindObject("/Script/SwtAdventure.SwtAdventureCustomizableMeshComponent")) and to
+              or WaCa.CatComponent(to))
+    local f = from and from:IsValid() and (from:IsA(StaticFindObject("/Script/SwtAdventure.SwtAdventureCustomizableMeshComponent")) and from
+              or WaCa.CatComponent(from))
+    if not WaCaNative_CopyLook or not t or not f then return false end
+    return WaCaNative_CopyLook(t:GetAddress(), f:GetAddress())
+end
+
 -- the parts by name, for per-part colours ("Tail.Fur = ..."): Body, Tail, Ears, Tufts (the fur cards)
 WaCa.PART_NAMES = { Body = "SkelMeshComp", Tail = "TailSkelMeshComp", Ears = "EarSkelMeshComp", Tufts = "FurSkelMeshComp" }
 
