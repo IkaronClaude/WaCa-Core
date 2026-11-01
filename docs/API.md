@@ -152,6 +152,11 @@ hint icon.
 The key is announced (`keys.mod` `{ mod, name, key, label }`) so the controls screen can warn when a player gives a
 game command the same key ("F is also ClanLife's key to report a finished task"). Call it at load, for keys that are on.
 
+## The fight's party
+`WaCa.SetCombatParty({ "TheRegretfulWarrior", 31 })` (role names or values) - the next fights put those story cats
+beside your cat instead of the game's own party; the game builds them its own way (looks, stats, moves). `nil` gives
+the game's party back. Only story cats (narrative roles), up to the room the game's party has (two).
+
 ## Native commands
 `WaCa.Command("Verb|arg|...")` sends a command to the native half (false when it's missing or the verb is unknown):
 `PressKey|Enter` (a real key press to the game window), `HoldKey|W|1` / `HoldKey|W|0` (a key held down / let go),

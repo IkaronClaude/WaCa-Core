@@ -426,6 +426,32 @@ function WaCa.ModKey(mod, name, default, label)
     return key
 end
 
+-- THE FIGHT'S PARTY (tickets.md "The party = who you're out with"): WaCa.SetCombatParty({ 29, 43 }) - or role names,
+-- { "TheRegretfulWarrior" } - and the next fights put those story cats beside your cat instead of the game's own
+-- party (WaCa Core's native hook on the fight's party list; the game builds the cats its own way: looks, stats, moves).
+-- nil / {} = the game's party again. Only story cats (narrative roles), as many as the game's party has room for (two).
+-- -> true when it took (false: WaCa Core too old, or the fight's party list wasn't found)
+local roleValues = nil
+function WaCa.SetCombatParty(roles)
+    local values = {}
+    for _, r in ipairs(roles or {}) do
+        local v = tonumber(r)
+        if not v and type(r) == "string" then
+            if not roleValues then
+                roleValues = {}
+                pcall(function()
+                    StaticFindObject("/Script/SwtQuest.ENarrativeRole"):ForEachName(function(n, x)
+                        roleValues[(n:ToString():gsub("^.*::", ""))] = x
+                    end)
+                end)
+            end
+            v = roleValues[r]
+        end
+        if v and v > 0 then values[#values + 1] = tostring(math.floor(v)) end
+    end
+    return WaCa.Command("Party|" .. table.concat(values, ",")) == true
+end
+
 -- the mod's main.lua is done: events may arrive from now on (they are held back while it runs on UE4SS's loader thread)
 function WaCa.Ready()
     if WaCaNative_Ready then WaCaNative_Ready() end

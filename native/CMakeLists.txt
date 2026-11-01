@@ -35,6 +35,7 @@ add_library(WaCaNative SHARED
     WaCaNative/src/saves.cpp
     WaCaNative/src/prey.cpp
     WaCaNative/src/hunt.cpp
+    WaCaNative/src/party.cpp
     WaCaNative/src/sequences.cpp
     WaCaNative/src/screens.cpp
     WaCaNative/src/fill.cpp

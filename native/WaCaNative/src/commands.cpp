@@ -8,6 +8,7 @@
 //   SwallowKey|<Unreal key name>|<1/0>              the game doesn't get that key (still KeyDown / KeyUp) (keys.cpp)
 //   SwallowAll|<1/0>                                the game gets no key / mouse button (a mod's own menu on top)
 //   ApplyBindings                                   keybinds.ini applied to the live bindings now (input.cpp)
+//   Party|<role>,<role>                             the next fights' party = those narrative roles; Party| = the game's (party.cpp)
 //   DevPressKey|<vk hex>  DevStack|<label>                                        (dev.cpp)
 //   MouseLook|<0/1>|<yaw degrees per mouse unit>|<pitch degrees per mouse unit>   mouse look on / off (camera.cpp)
 //   CameraRelativeMove|<0/1>                         right / left strafe instead of turning the camera (camera.cpp)
@@ -25,6 +26,7 @@
 #include "hunt.h"
 #include "dev.h"
 #include "input.h"
+#include "party.h"
 #include "keys.h"
 #include "log.h"
 #include "steam.h"
@@ -61,6 +63,7 @@ bool Run(const std::wstring& cmd) {
     else if (verb == L"SwallowKey") keys::Swallow(dev::VirtualKey(Arg(cmd, 1)), Arg(cmd, 2) == L"1");
     else if (verb == L"SwallowAll") keys::SwallowAll(Arg(cmd, 1) == L"1");
     else if (verb == L"ApplyBindings") input::ApplyNow();
+    else if (verb == L"Party") return party::Set(Arg(cmd, 1));
     else if (verb == L"DevStack") dev::Stack(Arg(cmd, 1));
     else if (verb == L"SteamKeyboard") steam::ShowKeyboard(Arg(cmd, 1), Arg(cmd, 2));
     else if (verb == L"HuntRoll") hunt::Configure(cmd);
