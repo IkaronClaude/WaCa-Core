@@ -106,6 +106,17 @@ std::mutex g_watchesMutex;
 std::atomic<size_t> g_watchCount{0};     // g_watches.size(), for the lock-free "nothing watched" fast path
 std::atomic<bool> g_haveGameThread{false};
 std::atomic<bool> g_startPending{false};      // a mod became ready: deliver its "Started" on the game thread
+// UE4SS starts the Lua mods one after another on its loader thread while the game thread runs: a mod that is ready
+// already got events (its Lua running on the game thread) while the loader thread started the next mods - both in
+// UE4SS's shared machinery at once (hooks, object wrappers). VM 2026-10-31 / 11-01: twice the game died at start-up,
+// a memcpy writing out of bounds under Deliver("Started") while 'WaCaGraphics ... starting mod'. So nothing is
+// delivered until the loading has been quiet kLoadQuiet (no Lua mod started) - Started replays what was missed.
+std::atomic<int64_t> g_lastLuaStart{0};       // steady-clock ms of the latest on_lua_start (any mod)
+constexpr int64_t kLoadQuiet = 3000;
+int64_t NowMs() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+bool ModsLoading() { return NowMs() - g_lastLuaStart.load(std::memory_order_acquire) < kLoadQuiet; }
 std::thread::id g_gameThread{};
 int g_depth = 0;                              // nested events (a handler whose calls fire more events)
 constexpr int kMaxDepth = 8;
@@ -183,7 +194,7 @@ ParamValue ReadParam(FProperty* p, void* params) {
 
 void Deliver(ModState& s, const std::string& event, UObject* object, std::initializer_list<std::string> args,
              const ParamValue* extra = nullptr) {
-    if (!s.ready || !s.thread) return;
+    if (!s.ready || !s.thread || ModsLoading()) return;
     const LuaMadeSimple::Lua& lua = *s.thread;
     if (!lua.is_global_function("WaCaNative_OnEvent")) return;
     if (g_depth >= kMaxDepth) {
@@ -251,6 +262,7 @@ void TraceCall(UObject* context, UFunction* function) {
 void OnProcessEvent(bool post, UObject* context, UFunction* function, void* params) {
     if (!OnGameThread()) return;
     if (!post && context && function && std::chrono::steady_clock::now() <= g_traceUntil) TraceCall(context, function);
+    if (ModsLoading()) return;                                 // (the loader thread is still starting mods)
     if (g_startPending.load(std::memory_order_relaxed)) DeliverStarted();
     if (g_watchCount.load(std::memory_order_relaxed) == 0 || !context || !function) return;
     const FName name = function->GetNamePrivate();
@@ -1071,6 +1083,7 @@ void Install() {
 }
 
 void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
+    g_lastLuaStart.store(NowMs(), std::memory_order_release);
     auto state = std::make_unique<ModState>();
     state->name = modName;
     state->mod = get_mod_ref(lua);
