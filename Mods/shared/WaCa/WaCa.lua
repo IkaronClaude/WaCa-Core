@@ -891,12 +891,44 @@ function WaCa.BlendLooks(a, b)
     local used = {}
     for _, f in ipairs(fa) do if f[1] == "PrefixNameId" then used[f[2]] = true end end
     for _, f in ipairs(fb) do if f[1] == "PrefixNameId" then used[f[2]] = true end end
-    local prefixes = {}
+    -- (the game's own prefixes NOT yet given to a cat - WrcNPCGenerationManager.RemainingPreffixes, weighted for the
+    -- kit's clan; VM 2026-11-01: a prefix taken from the story cats made "Lionkit" beside Lionstar. The story cats'
+    -- prefixes only when that pool is empty)
+    local clan = (a:match("ClanType=(%w+)")) or ""
+    local taken = {}                 -- (the story cats' prefixes: generated cats' list doesn't know them - Lionstar)
     for _, c in ipairs(WaCa.StoryCats()) do
         local p = c.look:match('PrefixNameId="([^"]*)"')
-        if p and p ~= "" and not used['"' .. p .. '"'] then prefixes[#prefixes + 1] = p end
+        if p then taken[p] = true end
     end
-    local prefix = #prefixes > 0 and prefixes[math.random(#prefixes)] or nil
+    local pool, total = {}, 0
+    pcall(function()
+        FindFirstOf("WrcNPCGenerationManager").RemainingPreffixes:ForEach(function(_, e)
+            local r = e:get()
+            local id = r.Preffix_ID:ToString()
+            local w = 1
+            pcall(function() w = tonumber(r[clan]) or 1 end)
+            if id ~= "" and w > 0 and not used['"' .. id .. '"'] and not taken[id] and WaCa.GetText(id .. "_KIT") ~= "" then
+                pool[#pool + 1] = { id = id, w = w }
+                total = total + w
+            end
+        end)
+    end)
+    local prefix
+    if total > 0 then
+        local roll = math.random() * total
+        for _, e in ipairs(pool) do
+            roll = roll - e.w
+            if roll <= 0 then prefix = e.id break end
+        end
+        prefix = prefix or pool[#pool].id
+    else
+        local prefixes = {}
+        for _, c in ipairs(WaCa.StoryCats()) do
+            local p = c.look:match('PrefixNameId="([^"]*)"')
+            if p and p ~= "" and not used['"' .. p .. '"'] then prefixes[#prefixes + 1] = p end
+        end
+        prefix = #prefixes > 0 and prefixes[math.random(#prefixes)] or nil
+    end
     local hasRole, hasSize = false, false
     for _, f in ipairs(parts) do
         if f[1] == "PrefixNameId" and prefix then f[2] = '"' .. prefix .. '"' end
