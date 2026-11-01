@@ -411,6 +411,14 @@ int LuaLastBroadcast(const LuaMadeSimple::Lua& lua) {
     return 2;
 }
 
+// WaCaNative_ModsLoading() -> true while Lua mods are still starting (the same answer the events wait on): WaCa.lua's
+// timer guard holds UE4SS's game-thread callbacks (ExecuteInGameThread / ...WithDelay) till then - they raced the
+// loader thread the same way (VM 2026-11-01: two start-up crashes 16 s in, a Lua callback reading 0x10)
+int LuaModsLoading(const LuaMadeSimple::Lua& lua) {
+    lua.set_bool(ModsLoading());
+    return 1;
+}
+
 int LuaReady(const LuaMadeSimple::Lua& lua) {
     if (ModState* state = StateOf(lua)) {
         {
@@ -1130,6 +1138,7 @@ void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
     lua.register_function("WaCaNative_Watch", &LuaWatch);
     lua.register_function("WaCaNative_DevTrace", &LuaDevTrace);
     lua.register_function("WaCaNative_Ready", &LuaReady);
+    lua.register_function("WaCaNative_ModsLoading", &LuaModsLoading);
     lua.register_function("WaCaNative_Broadcast", &LuaBroadcast);
     lua.register_function("WaCaNative_LastBroadcast", &LuaLastBroadcast);
     lua.register_function("WaCaNative_Command", &LuaCommand);

@@ -7,6 +7,26 @@
 -- Needs WaCa Core's native part (WaCaCore/dlls/main.dll), which applies the changes on the game thread.
 local WaCa = {}
 
+-- TIMERS WAIT WHILE MODS LOAD: UE4SS runs a mod's game-thread callbacks (ExecuteInGameThread / ...WithDelay) while its
+-- loader thread is still starting the next mods - both in UE4SS's shared machinery at once, the race the bridge's
+-- events already wait out (VM 2026-11-01: two start-up crashes 16 s in, a Lua callback reading 0x10). In every mod's
+-- state that loads this library, a callback coming due while mods load (WaCaNative_ModsLoading) waits 0.5 s and asks
+-- again. Once per state.
+if WaCaNative_ModsLoading and not rawget(_G, "__WaCaTimerGuard") then
+    rawset(_G, "__WaCaTimerGuard", true)
+    local rawDelay, rawNow = ExecuteInGameThreadWithDelay, ExecuteInGameThread
+    local function guarded(fn)
+        local function run()
+            local ok, loading = pcall(WaCaNative_ModsLoading)
+            if ok and loading and rawDelay then return rawDelay(500, run) end
+            return fn()
+        end
+        return run
+    end
+    if rawDelay then ExecuteInGameThreadWithDelay = function(ms, fn) return rawDelay(ms, guarded(fn)) end end
+    if rawNow then ExecuteInGameThread = function(fn) return rawNow(guarded(fn)) end end
+end
+
 local TABLE = "SwtStrings"
 local stringTables = nil
 
@@ -1514,10 +1534,25 @@ function WaCa.PlayerName()
     return name or "You"
 end
 
+-- a cat's look data (its MeshCustomizationComponent's CustomData - a live view), or nil. NULL-SAFE: a character
+-- class with that property left empty (prey, a fight's characters) handed back a null object, and reading through it
+-- crashed the game (VM 2026-11-01: twice, a probe asking every SwtAdventureCharacter its name) - pcall can't catch that
+function WaCa.CustomData(cat)
+    local cd
+    pcall(function()
+        if not (cat and cat:IsValid()) then return end
+        local comp = cat.MeshCustomizationComponent
+        if not (comp and comp:IsValid()) then return end
+        cd = comp.CustomData
+    end)
+    return cd
+end
+
 function WaCa.CatName(cat)
     local name
     pcall(function()
-        local cd = cat.MeshCustomizationComponent.CustomData
+        local cd = WaCa.CustomData(cat)
+        if not cd then return end
         name = WaCa.GetText(cd.PrefixNameId:ToString() .. cd.SuffixNameId:ToString())
     end)
     return (name and name ~= "") and name or nil
@@ -1543,7 +1578,7 @@ function WaCa.Cats()
         local q = a:K2_GetActorLocation()
         local clan
         pcall(function() clan = a.ClanType end)
-        if type(clan) ~= "number" then pcall(function() clan = a.MeshCustomizationComponent.CustomData.ClanType end) end
+        if type(clan) ~= "number" then pcall(function() local cd = WaCa.CustomData(a) if cd then clan = cd.ClanType end end) end
         out[#out + 1] = {
             actor = a, name = WaCa.CatName(a) or a:GetFName():ToString(),
             clan = type(clan) == "number" and catEnum("/Script/SwtQuest.EClanType", clan) or nil,
