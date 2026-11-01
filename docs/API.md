@@ -146,6 +146,12 @@ Fallback = 1` (default): a role this save has no cat for is shown in words ("the
 `WaCa.SetUIKey("Button_B", "Escape")` replaces a menu's keyboard key; `WaCa.SetUIIcon("Button_B", "Escape")` only its
 hint icon.
 
+## A mod's own keys
+`WaCa.ModKey(mod, name, default, label)` -> the key your mod should listen for. It comes from WaCa Keybinds & Mouse's
+`keybinds.ini` `[ModKeys]` (`<mod>.<name> = Key`, every mod's keys in one file) when set there, else your own default.
+The key is announced (`keys.mod` `{ mod, name, key, label }`) so the controls screen can warn when a player gives a
+game command the same key ("F is also ClanLife's key to report a finished task"). Call it at load, for keys that are on.
+
 ## Native commands
 `WaCa.Command("Verb|arg|...")` sends a command to the native half (false when it's missing or the verb is unknown):
 `PressKey|Enter` (a real key press to the game window), `HoldKey|W|1` / `HoldKey|W|0` (a key held down / let go),

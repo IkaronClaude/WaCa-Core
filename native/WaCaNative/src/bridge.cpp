@@ -66,6 +66,7 @@
 #include "sequences.h"
 #include "screens.h"
 #include "fill.h"
+#include "input.h"
 #include "areas.h"
 #include "combat.h"
 #include "bonds.h"
@@ -1074,6 +1075,19 @@ int LuaCursorPos(const LuaMadeSimple::Lua& lua) {
     return 2;
 }
 
+// WaCaNative_BoundKeys(command) -> "F, LeftMouseButton": the command's keyboard / mouse keys as they are now
+// (keybinds.ini's, else the game's own; "" = unknown) - the controls screen's clash check (input.cpp)
+int LuaBoundKeys(const LuaMadeSimple::Lua& lua) {
+    if (!lua.is_string()) lua.throw_error("WaCaNative_BoundKeys(command)");
+    std::string out;
+    for (auto& k : input::BoundKeys(Wide(std::string(lua.get_string())))) {
+        if (!out.empty()) out += ", ";
+        out += Narrow(k);
+    }
+    lua.set_string(out);
+    return 1;
+}
+
 // WaCaNative_CloneTableRow(DataTable address, existing row, new row) -> true / false: a new row in one of the game's
 // tables, a deep copy of an existing one (tables.cpp) - mod rows in the game's own lists (pattern / marking grids)
 int LuaCloneTableRow(const LuaMadeSimple::Lua& lua) {
@@ -1150,6 +1164,7 @@ void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
     lua.register_function("WaCaNative_CloneTableRow", &LuaCloneTableRow);
     lua.register_function("WaCaNative_WidgetRect", &LuaWidgetRect);
     lua.register_function("WaCaNative_CursorPos", &LuaCursorPos);
+    lua.register_function("WaCaNative_BoundKeys", &LuaBoundKeys);
     lua.register_function("WaCaNative_DevAxisBindings", &LuaDevAxisBindings);
     lua.register_function("WaCaNative_DevWatchAxis", &LuaDevWatchAxis);
     lua.register_function("WaCaNative_DevWatchAddress", &LuaDevWatchAddress);
@@ -1184,6 +1199,9 @@ void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
 
 void LuaStopping(LuaMadeSimple::Lua& lua) {
     g_lastLuaStart.store(NowMs(), std::memory_order_release);   // (a reload: hold events from here, not from its start)
+    // a mod's own menu kept every key from the game (SwallowAll) and its Lua is going - the keys go back, or the game
+    // would take no key at all (a reload with the controls screen open, VM 2026-11-01)
+    keys::SwallowAll(false);
     bool locked = g_statesMutex.try_lock_for(std::chrono::seconds(2));     // (as in LuaStarted)
     struct Unlock { bool on; ~Unlock() { if (on) g_statesMutex.unlock(); } } unlockAtEnd{locked};
     if (!locked) logx::Line(L"[bridge] a mod stopping while an event runs - removed without waiting");

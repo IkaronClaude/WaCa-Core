@@ -400,6 +400,32 @@ received = function(event, payload, from)
     if not ok2 then print(string.format("[WaCa] cross-mod event %s: %s\n", event, tostring(err))) end
 end
 
+-- A MOD'S OWN KEYS - one key file for every mod (operator 2026-10-25: keybinds.ini is "the one source"):
+-- WaCa.ModKey(mod, name, default, label) -> the key. WaCa Keybinds & Mouse's keybinds.ini [ModKeys]
+-- "<mod>.<name> = Key" wins over the mod's own default (its own ini's setting); without that mod, the default. Every
+-- mod key is announced ("keys.mod" { mod, name, key, label }) and announced again when asked ("keys.ask") - the
+-- controls screen names a clash ("F is also Clan Life's report key") whatever the load order.
+local modKeys = {}
+local MODS_DIR = (debug.getinfo(1, "S").source:match("^@(.+)[/\\]shared[/\\]WaCa[/\\]WaCa%.lua$"))
+function WaCa.ModKey(mod, name, default, label)
+    local key = default
+    local ini = MODS_DIR and WaCa.ReadIni(MODS_DIR .. "/WaCaKeybinds/config/keybinds.ini")
+    local v = ini and ini["ModKeys"] and ini["ModKeys"][mod .. "." .. name]
+    if v and v ~= "" then key = v end
+    local entry = { mod = mod, name = name, key = key, label = label or name }
+    if #modKeys == 0 then
+        WaCa.On("keys.ask", function()
+            for _, e in ipairs(modKeys) do WaCa.Publish("keys.mod", e) end
+        end)
+    end
+    for i, e in ipairs(modKeys) do
+        if e.mod == mod and e.name == name then table.remove(modKeys, i) break end
+    end
+    modKeys[#modKeys + 1] = entry
+    WaCa.Publish("keys.mod", entry)
+    return key
+end
+
 -- the mod's main.lua is done: events may arrive from now on (they are held back while it runs on UE4SS's loader thread)
 function WaCa.Ready()
     if WaCaNative_Ready then WaCaNative_Ready() end
