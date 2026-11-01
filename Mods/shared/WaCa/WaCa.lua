@@ -970,6 +970,55 @@ function WaCa.BlendLooks(a, b)
     return "(" .. table.concat(text, ",") .. ")", name, WaCa.KIT_SCALE
 end
 
+-- A MONTAGE ON A CAT, null-safe (a method called on a null object is an access violation pcall cannot catch - a mesh
+-- with no animation running has no anim instance): target = a skeletal mesh component, or an actor (its
+-- SkeletalMeshComponent, else Mesh, else its first skeletal mesh); montage = the asset or its object path. Returns the
+-- montage's length (nil: nothing played). forceMode = 1st put the mesh back on its animation blueprint.
+local skelClass
+local function bodyMesh(target)
+    if not (target and target:IsValid()) then return nil end
+    skelClass = skelClass or StaticFindObject("/Script/Engine.SkeletalMeshComponent")
+    local mesh
+    pcall(function() if target:IsA(skelClass) then mesh = target end end)
+    for _, field in ipairs({ "SkeletalMeshComponent", "Mesh" }) do
+        if not mesh then
+            pcall(function() local m = target[field] if m and m:IsValid() then mesh = m end end)
+        end
+    end
+    if not mesh then
+        pcall(function() local m = target:GetComponentByClass(skelClass) if m and m:IsValid() then mesh = m end end)
+    end
+    return mesh
+end
+local function animOf(target, forceMode)
+    local mesh = bodyMesh(target)
+    if not mesh then return nil end
+    local inst
+    pcall(function()
+        if forceMode then mesh:SetAnimationMode(0, true) end
+        local i = mesh:GetAnimInstance()
+        if i and i:IsValid() then inst = i end
+    end)
+    return inst
+end
+function WaCa.PlayMontage(target, montage, rate, forceMode)
+    if type(montage) == "string" then
+        local path = montage:find("%.") and montage or (montage .. "." .. montage:match("([^/]+)$"))
+        montage = WaCa.LoadAsset(path)
+    end
+    if not (montage and montage:IsValid()) then return nil end
+    local inst = animOf(target, forceMode)
+    if not inst then return nil end
+    local len
+    pcall(function() len = inst:Montage_Play(montage, rate or 1.0, 0, 0.0, true) end)
+    return len
+end
+function WaCa.StopMontage(target, blend)
+    local inst = animOf(target)
+    if not inst then return false end
+    return (pcall(function() inst:Montage_Stop(blend or 0.25, nil) end))
+end
+
 -- WHAT A TRACE HIT: the name of the material on the hit component's slot 0 (a trace's out-param `hit`), or nil.
 -- Every step checked - a method called on a null object is an access violation pcall cannot catch (VM 2026-10-31:
 -- the game died in a walker's ground check on a hit with no material).
