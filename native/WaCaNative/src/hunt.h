@@ -17,6 +17,8 @@ void Fail(const std::wstring& preyName);
 bool Detect(void* service, void* detectionComponent, int detectionType);
 // add EXP to a level component (USwtQuestLevelComponent, the player state's) the way the game does - its resource
 // "add value" virtual (level-ups included); false when the anchors disagree
+// the level component's level, EXP, EXP for the next level and level cap; false when they don't read as one
+bool LevelInfo(void* levelComponent, int& level, float& exp, float& next, int& cap);
 bool AddExperience(void* levelComponent, float amount);
 // add to any quest resource component (USwtQuestResourceComponent: the fresh-kill pile, level, health, stamina) the
 // game's way - its add-value virtual, checked per class against the anchors; *now = the value after (+0x10C)

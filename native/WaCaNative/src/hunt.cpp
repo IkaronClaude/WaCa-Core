@@ -299,6 +299,19 @@ bool AddResource(void* component, float amount, float* now) {
     return true;
 }
 
+// the level component's level / EXP / EXP for the next level / level cap (VM 2026-11-01: +0x10C EXP - the resource
+// value AddResource anchors -, +0x110 the next level's EXP, +0x120 the level, +0x124 the cap: 246 / 7500 / 18 / 20);
+// false when the values don't look like a level (a game update moved them)
+bool LevelInfo(void* levelComponent, int& level, float& exp, float& next, int& cap) {
+    if (!levelComponent || IsBadReadPtr(levelComponent, 0x128)) return false;
+    auto* b = static_cast<uint8_t*>(levelComponent);
+    exp = *reinterpret_cast<float*>(b + 0x10C);
+    next = *reinterpret_cast<float*>(b + 0x110);
+    level = *reinterpret_cast<int32_t*>(b + 0x120);
+    cap = *reinterpret_cast<int32_t*>(b + 0x124);
+    return cap >= 1 && cap <= 200 && level >= 1 && level <= cap && exp >= 0 && next > 0 && exp <= next * 2;
+}
+
 bool AddExperience(void* levelComponent, float amount) {
     if (!AddResource(levelComponent, amount, nullptr)) return false;
     logx::Line(L"[hunt] +%.0f EXP", amount);

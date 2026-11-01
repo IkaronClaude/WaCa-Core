@@ -932,6 +932,22 @@ int LuaAddExperience(const LuaMadeSimple::Lua& lua) {
     return 1;
 }
 
+// WaCaNative_LevelInfo(level component address) -> level, EXP, EXP for the next level, level cap (or nil) (hunt.cpp)
+int LuaLevelInfo(const LuaMadeSimple::Lua& lua) {
+    auto addr = static_cast<uintptr_t>(lua.get_integer());
+    int level = 0, cap = 0;
+    float exp = 0, next = 0;
+    if (!hunt::LevelInfo(reinterpret_cast<void*>(addr), level, exp, next, cap)) {
+        lua.set_nil();
+        return 1;
+    }
+    lua.set_integer(level);
+    lua.set_number(exp);
+    lua.set_number(next);
+    lua.set_integer(cap);
+    return 4;
+}
+
 // WaCaNative_AddBond(ENarrativeRole value, points) -> true / false: bond with a story cat, the game's way (bonds.cpp)
 int LuaAddBond(const LuaMadeSimple::Lua& lua) {
     auto role = static_cast<uint8_t>(lua.get_integer());
@@ -1182,6 +1198,7 @@ void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
     lua.register_function("WaCaNative_TextFallback", &LuaTextFallback);
     lua.register_function("WaCaNative_HookAreas", &LuaHookAreas);
     lua.register_function("WaCaNative_AddExperience", &LuaAddExperience);
+    lua.register_function("WaCaNative_LevelInfo", &LuaLevelInfo);
     lua.register_function("WaCaNative_AddBond", &LuaAddBond);
     lua.register_function("WaCaNative_AddResource", &LuaAddResource);
     lua.register_function("WaCaNative_CombatExperience", &LuaCombatExperience);
