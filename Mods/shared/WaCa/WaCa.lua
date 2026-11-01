@@ -900,6 +900,18 @@ function WaCa.BlendLooks(a, b)
         local p = c.look:match('PrefixNameId="([^"]*)"')
         if p then taken[p] = true end
     end
+    -- (and the names of the cats in the world - the camp's generated cats aren't story cats: 'Lionkit' beside the
+    -- camp's Lionstar, 'Tigerkit' beside Tigerclaw, VM 2026-11-01)
+    local living = {}
+    for _, cat in ipairs(FindAllOf("SwtAdventureQuestActor") or {}) do
+        pcall(function() local n = WaCa.CatName(cat) if n and n ~= "" then living[#living + 1] = n:lower() end end)
+    end
+    local function nameTaken(word)
+        word = word:lower()
+        if word == "" then return true end
+        for _, n in ipairs(living) do if n:sub(1, #word) == word then return true end end
+        return false
+    end
     local pool, total = {}, 0
     pcall(function()
         FindFirstOf("WrcNPCGenerationManager").RemainingPreffixes:ForEach(function(_, e)
@@ -907,7 +919,9 @@ function WaCa.BlendLooks(a, b)
             local id = r.Preffix_ID:ToString()
             local w = 1
             pcall(function() w = tonumber(r[clan]) or 1 end)
-            if id ~= "" and w > 0 and not used['"' .. id .. '"'] and not taken[id] and WaCa.GetText(id .. "_KIT") ~= "" then
+            local kitName = WaCa.GetText(id .. "_KIT")
+            if id ~= "" and w > 0 and not used['"' .. id .. '"'] and not taken[id] and kitName ~= ""
+                and not nameTaken(kitName:match("^(.-)kit$") or "") then
                 pool[#pool + 1] = { id = id, w = w }
                 total = total + w
             end
@@ -922,10 +936,22 @@ function WaCa.BlendLooks(a, b)
         end
         prefix = prefix or pool[#pool].id
     else
+        -- (the unused pool used up: the game's whole name list - STR_CAT_NAME<n>, as far as it goes - by the same
+        -- rules; a story cat's prefix would be taken by definition)
         local prefixes = {}
-        for _, c in ipairs(WaCa.StoryCats()) do
-            local p = c.look:match('PrefixNameId="([^"]*)"')
-            if p and p ~= "" and not used['"' .. p .. '"'] then prefixes[#prefixes + 1] = p end
+        local misses = 0
+        for n = 1, 500 do
+            local id = "STR_CAT_NAME" .. n
+            local kitName = WaCa.GetText(id .. "_KIT")
+            if kitName == "" or kitName:find("^STR_") then
+                misses = misses + 1
+                if misses > 20 then break end
+            else
+                misses = 0
+                if not used['"' .. id .. '"'] and not taken[id] and not nameTaken(kitName:match("^(.-)kit$") or "") then
+                    prefixes[#prefixes + 1] = id
+                end
+            end
         end
         prefix = #prefixes > 0 and prefixes[math.random(#prefixes)] or nil
     end

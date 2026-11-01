@@ -98,6 +98,10 @@ struct Watch {
 };
 
 std::vector<std::unique_ptr<ModState>> g_states;
+// the mods' states: added / removed on UE4SS's loader thread (a mod starting, a hot reload stopping it) while the game
+// thread delivers into them - a removal under a delivery freed the state it ran in. Held while delivering (recursive:
+// a handler's calls raise more events) and while adding / removing.
+std::recursive_timed_mutex g_statesMutex;
 std::vector<Watch> g_watches;
 // mods register / drop watches on UE4SS's mod thread (start-up, reloads) while the game thread dispatches - the list is
 // only touched under this lock, and events are delivered after it's released (a handler may add watches). A crash at
@@ -110,13 +114,34 @@ std::atomic<bool> g_startPending{false};      // a mod became ready: deliver its
 // already got events (its Lua running on the game thread) while the loader thread started the next mods - both in
 // UE4SS's shared machinery at once (hooks, object wrappers). VM 2026-10-31 / 11-01: twice the game died at start-up,
 // a memcpy writing out of bounds under Deliver("Started") while 'WaCaGraphics ... starting mod'. So nothing is
-// delivered until the loading has been quiet kLoadQuiet (no Lua mod started) - Started replays what was missed.
+// delivered while a mod is LOADING: from its on_lua_start until its main.lua says Ready (a mod that never does - not a
+// WaCa mod - counts kMaxLoad from its start), and kLoadQuiet after the latest start. Started replays what was missed.
+// (VM 2026-11-01: a 3 s window alone was too short - Clan Life's main.lua ran 12 s on a hot reload and the game hung.)
 std::atomic<int64_t> g_lastLuaStart{0};       // steady-clock ms of the latest on_lua_start (any mod)
 constexpr int64_t kLoadQuiet = 3000;
+constexpr int64_t kMaxLoad = 30000;
+std::mutex g_loadingMutex;
+std::map<std::wstring, int64_t> g_loadingMods;   // mod name -> its on_lua_start (ms), until its Ready
+std::atomic<bool> g_loadingCached{true};
+std::atomic<int64_t> g_loadingCheckedAt{0};
 int64_t NowMs() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
-bool ModsLoading() { return NowMs() - g_lastLuaStart.load(std::memory_order_acquire) < kLoadQuiet; }
+// (every ProcessEvent asks: the answer is re-worked at most every 250 ms, an atomic in between)
+bool ModsLoading() {
+    const int64_t now = NowMs();
+    if (now - g_lastLuaStart.load(std::memory_order_acquire) < kLoadQuiet) return true;
+    if (now - g_loadingCheckedAt.load(std::memory_order_relaxed) < 250) return g_loadingCached.load(std::memory_order_relaxed);
+    bool loading = false;
+    {
+        std::lock_guard<std::mutex> lock(g_loadingMutex);
+        for (auto& [name, startedAt] : g_loadingMods)
+            if (now - startedAt < kMaxLoad) { loading = true; break; }
+    }
+    g_loadingCached.store(loading, std::memory_order_relaxed);
+    g_loadingCheckedAt.store(now, std::memory_order_relaxed);
+    return loading;
+}
 std::thread::id g_gameThread{};
 int g_depth = 0;                              // nested events (a handler whose calls fire more events)
 constexpr int kMaxDepth = 8;
@@ -136,6 +161,7 @@ bool OnGameThread() {
 }
 
 ModState* StateOf(const LuaMadeSimple::Lua& lua) {
+    std::lock_guard<std::recursive_timed_mutex> lock(g_statesMutex);
     LuaMod* mod = get_mod_ref(lua);
     for (auto& s : g_states)
         if (s->mod == mod) return s.get();
@@ -222,6 +248,7 @@ void Deliver(ModState& s, const std::string& event, UObject* object, std::initia
 }
 
 void DeliverStarted() {
+    std::lock_guard<std::recursive_timed_mutex> lock(g_statesMutex);
     g_startPending.store(false, std::memory_order_relaxed);
     for (size_t i = 0; i < g_states.size(); ++i) {
         ModState& s = *g_states[i];
@@ -263,6 +290,7 @@ void OnProcessEvent(bool post, UObject* context, UFunction* function, void* para
     if (!OnGameThread()) return;
     if (!post && context && function && std::chrono::steady_clock::now() <= g_traceUntil) TraceCall(context, function);
     if (ModsLoading()) return;                                 // (the loader thread is still starting mods)
+    std::lock_guard<std::recursive_timed_mutex> statesLock(g_statesMutex);
     if (g_startPending.load(std::memory_order_relaxed)) DeliverStarted();
     if (g_watchCount.load(std::memory_order_relaxed) == 0 || !context || !function) return;
     const FName name = function->GetNamePrivate();
@@ -365,6 +393,7 @@ int LuaBroadcast(const LuaMadeSimple::Lua& lua) {
                    sticky ? L" (kept as sticky)" : L"");
         return 0;
     }
+    std::lock_guard<std::recursive_timed_mutex> statesLock(g_statesMutex);
     for (size_t i = 0; i < g_states.size(); ++i) {
         if (g_states[i].get() == from) continue;
         Deliver(*g_states[i], event, nullptr, {payload, sender});
@@ -384,6 +413,11 @@ int LuaLastBroadcast(const LuaMadeSimple::Lua& lua) {
 
 int LuaReady(const LuaMadeSimple::Lua& lua) {
     if (ModState* state = StateOf(lua)) {
+        {
+            std::lock_guard<std::mutex> lock(g_loadingMutex);
+            g_loadingMods.erase(state->name);
+        }
+        g_loadingCheckedAt.store(0, std::memory_order_relaxed);     // (re-worked on the next event)
         state->ready = true;
         g_startPending.store(true, std::memory_order_release);
         logx::Line(L"[bridge] %s: ready for events", state->name.c_str());
@@ -1084,6 +1118,10 @@ void Install() {
 
 void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
     g_lastLuaStart.store(NowMs(), std::memory_order_release);
+    {
+        std::lock_guard<std::mutex> lock(g_loadingMutex);
+        g_loadingMods[modName] = NowMs();
+    }
     auto state = std::make_unique<ModState>();
     state->name = modName;
     state->mod = get_mod_ref(lua);
@@ -1125,10 +1163,21 @@ void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
     lua.register_function("WaCaNative_CombatExperience", &LuaCombatExperience);
     lua.register_function("WaCaNative_DevTraceCommandAxis", &LuaDevTraceCommandAxis);
     lua.register_function("WaCaNative_SetTableField", &LuaSetTableField);
-    g_states.push_back(std::move(state));
+    {
+        // (the loader thread waits for a delivery in progress - at most 2 s: UE4SS may hold a lock of its own here
+        // that the delivery's Lua is waiting for; then on without it, as before)
+        bool locked = g_statesMutex.try_lock_for(std::chrono::seconds(2));
+        if (!locked) logx::Line(L"[bridge] %s starting while an event runs - added without waiting", modName.c_str());
+        g_states.push_back(std::move(state));
+        if (locked) g_statesMutex.unlock();
+    }
 }
 
 void LuaStopping(LuaMadeSimple::Lua& lua) {
+    g_lastLuaStart.store(NowMs(), std::memory_order_release);   // (a reload: hold events from here, not from its start)
+    bool locked = g_statesMutex.try_lock_for(std::chrono::seconds(2));     // (as in LuaStarted)
+    struct Unlock { bool on; ~Unlock() { if (on) g_statesMutex.unlock(); } } unlockAtEnd{locked};
+    if (!locked) logx::Line(L"[bridge] a mod stopping while an event runs - removed without waiting");
     LuaMod* mod = get_mod_ref(lua);
     for (auto it = g_states.begin(); it != g_states.end(); ++it) {
         if ((*it)->mod != mod) continue;
@@ -1151,6 +1200,7 @@ void EmitLook(void* component, void* part, const char* what) {
     int n = WideCharToMultiByte(CP_UTF8, 0, partName.c_str(), -1, nullptr, 0, nullptr, nullptr);
     std::string utf8(n > 0 ? n - 1 : 0, '\0');
     if (n > 1) WideCharToMultiByte(CP_UTF8, 0, partName.c_str(), -1, utf8.data(), n, nullptr, nullptr);
+    std::lock_guard<std::recursive_timed_mutex> lock(g_statesMutex);
     for (size_t i = 0; i < g_states.size(); ++i) Deliver(*g_states[i], "CatLookPart", comp, {what, utf8});
 }
 
@@ -1159,6 +1209,7 @@ void Emit(const char* event, std::initializer_list<std::string> args) {
         logx::Line(L"[bridge] event %s raised off the game thread - dropped", Wide(event).c_str());
         return;
     }
+    std::lock_guard<std::recursive_timed_mutex> lock(g_statesMutex);
     for (size_t i = 0; i < g_states.size(); ++i) Deliver(*g_states[i], event, nullptr, args);
 }
 
