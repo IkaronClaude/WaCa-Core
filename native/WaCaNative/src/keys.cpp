@@ -21,6 +21,8 @@ using DispatchFn = LRESULT(WINAPI*)(const MSG*);
 DispatchFn g_dispatch = nullptr;
 // keys the game doesn't get right now (keys::Swallow) - the game thread reads, Lua (also the game thread) writes
 std::atomic<bool> g_swallow[256]{};
+// every key and mouse button kept from the game (keys::SwallowAll) - a menu of a mod's own is on top of the game's
+std::atomic<bool> g_swallowAll{false};
 
 // a Windows virtual key as an Unreal key name ("" when not mapped)
 std::string KeyName(WPARAM vk) {
@@ -103,6 +105,11 @@ LRESULT WINAPI DispatchDetour(const MSG* msg) {
             case WM_CHAR: vk = msg->wParam == 0x0D ? VK_RETURN : (msg->wParam == 0x09 ? VK_TAB : 0); break;
         }
         if (vk && vk < 256 && g_swallow[vk].load(std::memory_order_relaxed)) return 0;
+        if (g_swallowAll.load(std::memory_order_relaxed) &&
+            (vk || (msg->message >= WM_KEYDOWN && msg->message <= WM_SYSDEADCHAR) ||
+             (msg->message >= WM_LBUTTONDOWN && msg->message <= WM_MBUTTONDBLCLK) || msg->message == WM_MOUSEWHEEL)) {
+            return 0;
+        }
     }
     return g_dispatch(msg);
 }
@@ -125,6 +132,10 @@ namespace keys {
 void Swallow(unsigned int vk, bool on) {
     if (vk == 0 || vk >= 256) return;
     if (g_swallow[vk].exchange(on) != on) logx::Line(L"[keys] key %X %s", vk, on ? L"kept from the game" : L"back to the game");
+}
+
+void SwallowAll(bool on) {
+    if (g_swallowAll.exchange(on) != on) logx::Line(L"[keys] every key %s", on ? L"kept from the game" : L"back to the game");
 }
 
 void CursorPos(long& x, long& y) {

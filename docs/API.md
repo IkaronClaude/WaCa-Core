@@ -149,8 +149,10 @@ hint icon.
 ## Native commands
 `WaCa.Command("Verb|arg|...")` sends a command to the native half (false when it's missing or the verb is unknown):
 `PressKey|Enter` (a real key press to the game window), `HoldKey|W|1` / `HoldKey|W|0` (a key held down / let go),
-`SwallowKey|Enter|1` (the game doesn't get that key - the mods still do - until `|0`), `MouseLook|on|yaw|pitch`,
-`CameraRelativeMove|0/1`, and the others in `native/WaCaNative/src/commands.cpp`.
+`SwallowKey|Enter|1` (the game doesn't get that key - the mods still do - until `|0`), `SwallowAll|1` (no key, mouse
+button or wheel reaches the game until `|0` - for a mod's own menu on top of the game's), `ApplyBindings`
+(`WaCaKeybinds\config\keybinds.ini` applied to the live bindings now; the key icons and hints follow it too),
+`MouseLook|on|yaw|pitch`, `CameraRelativeMove|0/1`, and the others in `native/WaCaNative/src/commands.cpp`.
 
 ## Widgets on screen
 `WaCa.WidgetRect(widget)` -> left, top, right, bottom in desktop pixels (where it was last drawn - read natively: a
