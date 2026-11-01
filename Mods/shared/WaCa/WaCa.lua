@@ -522,44 +522,88 @@ end
 
 -- CONTENT FROM EVERY MOD (operator 2026-10-28: a modding framework - overlapping mods must not have to edit the same
 -- file): WaCa.ReadContent(basePath, name) reads basePath (e.g. WaCaClanLife/config/clanevents.ini), then every enabled
--- mod's own <Mod>/content/<name>.ini on top, in load order, and returns one ini table:
+-- mod's own <Mod>/content/<name>.ini on top, and returns one ini table:
 --   - a section only one file has: added as it is (two mods' [Event.Rogues] / [Event.Moonhigh] simply both exist);
 --   - a section several files have: NUMBERED keys are ADDED after the ones already there (Step1 / Line1 / Morning1 ...
---     -> renumbered: two mods can both add beats to [Day.10] or lines to the same [Dialogue.X]); a plain key (On, Days,
---     Chance ...) is set by the later mod, and the override is logged.
--- section.__mods lists the mods that touched it. A mod turns one of another's off with its own section + Off = 1 (the
--- readers honour it).
+--     -> renumbered: two mods can both add beats to [Day.10] or lines to the same [Dialogue.X]);
+--   - EXPLICIT OVERRIDES, NOT LOAD ORDER (operator 2026-10-28: "load order as core design choice?" - no): a mod
+--     replaces another's section only by saying so - its own section with Replaces = <Mod>/<Section> takes the
+--     place of that one, whole; Off = 1 turns another's section off (the readers honour it). Two mods setting the same
+--     PLAIN key (On, Days, Chance ...) differently without that is a CONFLICT - logged with both mods and values
+--     (WaCa.ContentConflicts) and shown once in the game - and only then does load order break the tie.
+-- section.__mods lists the mods that touched it.
+WaCa.ContentConflicts = WaCa.ContentConflicts or {}
+local conflictShown = false
+local function noteConflict(text)
+    table.insert(WaCa.ContentConflicts, text)
+    print("[WaCa] CONFLICT " .. text .. "\n")
+    if conflictShown then return end
+    conflictShown = true
+    WaCa.On("ScreenShown", function(screen)
+        local ok, hud = pcall(function() return screen:GetClass():GetFName():ToString():find("^WBP_GuiHudGame") ~= nil end)
+        if not (ok and hud) or conflictShown == "told" then return end
+        conflictShown = "told"
+        ExecuteInGameThreadWithDelay(5000, function()
+            WaCa.Emit("ShowLine", string.format("WaCa: %d setting(s) two mods disagree on - see UE4SS.log (CONFLICT)",
+                #WaCa.ContentConflicts))
+        end)
+    end)
+end
+
 function WaCa.ReadContent(basePath, name)
     local out = WaCa.ReadIni(basePath) or {}
     out.__order = out.__order or {}
     local modsDir, own = basePath:match("^(.*)[/\\]([^/\\]+)[/\\]config[/\\][^/\\]+$")
-    for s, t in pairs(out) do if s ~= "__order" and type(t) == "table" then t.__mods = { own or "?" } end end
+    local function owned(t, mod)
+        t.__mods = { mod }
+        t.__owner = {}
+        for _, k in ipairs(t.__order or {}) do t.__owner[k] = mod end
+    end
+    for s, t in pairs(out) do if s ~= "__order" and type(t) == "table" then owned(t, own or "?") end end
     if not modsDir then return out end
     for _, mod in ipairs(WaCa.EnabledMods(modsDir)) do
         local add = mod ~= own and WaCa.ReadIni(modsDir .. "/" .. mod .. "/content/" .. name .. ".ini")
         for section, t in pairs(add or {}) do
-            if section ~= "" and type(t) == "table" then
+            if section ~= "" and section ~= "__order" and type(t) == "table" then
+                -- (Replaces = <Mod>/<Section>: that mod's section goes, this one takes its place - whole)
+                local rMod, rSection = tostring(t.Replaces or ""):match("^%s*([^/]+)/(.-)%s*$")
+                if rMod then
+                    local target = out[rSection]
+                    local hasMod = false
+                    for _, m in ipairs(target and target.__mods or {}) do if m == rMod then hasMod = true end end
+                    if hasMod then
+                        out[rSection] = nil
+                        print(string.format("[WaCa] %s: %s's [%s] replaces %s's [%s]\n", name, mod, section, rMod, rSection))
+                    else
+                        print(string.format("[WaCa] %s: %s's [%s] says Replaces = %s/%s - %s has no such section here\n",
+                            name, mod, section, rMod, rSection, rMod))
+                    end
+                end
                 local into = out[section]
                 if not into then
-                    t.__mods = { mod }
+                    owned(t, mod)
                     out[section] = t
                 else
                     table.insert(into.__mods, mod)
+                    into.__owner = into.__owner or {}
                     for _, k in ipairs(t.__order or {}) do
                         local prefix = k:match("^(%a+)%d+$")
                         if prefix then
                             local i = 1
                             while into[prefix .. i] ~= nil do i = i + 1 end
                             into[prefix .. i] = t[k]
+                            into.__owner[prefix .. i] = mod
                             table.insert(into.__order, prefix .. i)
                         else
-                            if into[k] ~= nil and into[k] ~= t[k] then
-                                print(string.format("[WaCa] %s: %s sets [%s] %s = %s (was %s)\n", name, mod, section, k,
-                                    tostring(t[k]), tostring(into[k])))
+                            if into[k] ~= nil and into[k] ~= t[k] and k ~= "Off" and k ~= "Replaces" then
+                                noteConflict(string.format("%s: [%s] %s - %s says %s, %s says %s (no Replaces = %s/%s; %s wins by load order)",
+                                    name, section, k, into.__owner[k] or "?", tostring(into[k]), mod, tostring(t[k]),
+                                    into.__owner[k] or "?", section, mod))
                             elseif into[k] == nil then
                                 table.insert(into.__order, k)
                             end
                             into[k] = t[k]
+                            into.__owner[k] = mod
                         end
                     end
                 end

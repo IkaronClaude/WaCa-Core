@@ -69,9 +69,11 @@ WaCa.Subscribe("player.rank", function(r) end)   -- { rank, name, slot, from } o
 then `<Mod>/content/<name>.ini` of every enabled mod on top:
 - a section only one file has is added as it is (two mods' `[Event.Rogues]` / `[Event.Moonhigh]` both exist);
 - a section several files have: **numbered** keys are appended (`Step1`, `Line1`, `Morning1` ... renumbered - two
-  mods can add beats to the same story day or lines to the same dialogue); a plain key is set by the later mod
-  (logged in UE4SS.log);
-- `Off = 1` in your copy of a section turns another mod's off (the readers honour it);
+  mods can add beats to the same story day or lines to the same dialogue);
+- **explicit overrides, not load order**: `Replaces = <Mod>/<Section>` in your section takes the place of that mod's
+  section, whole; `Off = 1` in your copy of a section turns another mod's off (the readers honour it). Two mods
+  setting the same plain key differently without that is a **conflict** - logged (`[WaCa] CONFLICT ...` with both
+  mods and values, `WaCa.ContentConflicts`) and announced once in the game; only then does load order break the tie;
 - `section.__mods` lists the mods that touched a section.
 So a story mod is a folder with `enabled.txt` and a `content` folder - no code, no edits to anyone else's files.
 `WaCa.EnabledMods(modsDir)` lists the enabled mods (mods.txt order, then `enabled.txt` ones by name).
