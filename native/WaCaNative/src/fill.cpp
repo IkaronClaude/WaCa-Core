@@ -86,12 +86,18 @@ std::wstring Fallback(const std::wstring& text, bool* changed) {
             out += text.substr(open, close - open + 1);
         } else {
             auto words = Words(inner);
-            // (a sentence's start: capitalised)
             size_t k = out.size();
             while (k > 0 && (out[k - 1] == L'"' || out[k - 1] == L'\'' || out[k - 1] == L'>')) --k;
             while (k > 0 && out[k - 1] == L' ') --k;
-            if (k == 0 || out[k - 1] == L'.' || out[k - 1] == L'!' || out[k - 1] == L'?' || out[k - 1] == L'\n')
-                words[0] = static_cast<wchar_t>(std::towupper(words[0]));
+            bool start = k == 0 || out[k - 1] == L'.' || out[k - 1] == L'!' || out[k - 1] == L'?' || out[k - 1] == L'\n';
+            // (spoken TO - "Thank you, {X}." / "{X}, listen": no article - "Thank you, resentful elder.", not "..., the
+            // resentful elder." (the ThunderClan sweep, 2026-11-01))
+            wchar_t after = close + 1 < text.size() ? text[close + 1] : L'.';
+            bool addressed = (k > 0 && out[k - 1] == L',' && (after == L'.' || after == L'!' || after == L'?' || after == L','))
+                          || (start && after == L',');
+            if (addressed && words.rfind(L"the ", 0) == 0) words = words.substr(4);
+            // (a sentence's start: capitalised)
+            if (start) words[0] = static_cast<wchar_t>(std::towupper(words[0]));
             out += words;
             *changed = true;
             std::lock_guard<std::mutex> lock(g_seenMutex);
