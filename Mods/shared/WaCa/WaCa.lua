@@ -431,8 +431,13 @@ end
 -- party (WaCa Core's native hook on the fight's party list; the game builds the cats its own way: looks, stats, moves).
 -- nil / {} = the game's party again. Only story cats (narrative roles), as many as the game's party has room for (two).
 -- -> true when it took (false: WaCa Core too old, or the fight's party list wasn't found)
+-- WaCa.SetCombatParty(roles, true) sets this mod's BASE party (a story pack start's): nil then goes back to it instead
+-- of the game's.
 local roleValues = nil
-function WaCa.SetCombatParty(roles)
+local baseParty = nil
+function WaCa.SetCombatParty(roles, base)
+    if base then baseParty = roles and #roles > 0 and roles or nil end
+    if roles == nil or #roles == 0 then roles = baseParty end
     local values = {}
     for _, r in ipairs(roles or {}) do
         local v = tonumber(r)
