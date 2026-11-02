@@ -41,7 +41,8 @@ add_library(WaCaNative SHARED
     WaCaNative/src/fill.cpp
     WaCaNative/src/areas.cpp
     WaCaNative/src/combat.cpp
-    WaCaNative/src/bonds.cpp)
+    WaCaNative/src/bonds.cpp
+    WaCaNative/src/gcguard.cpp)
 target_link_libraries(WaCaNative PRIVATE minhook UE4SS dxgi dxguid)
 target_compile_definitions(WaCaNative PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
 set_target_properties(WaCaNative PROPERTIES OUTPUT_NAME main)

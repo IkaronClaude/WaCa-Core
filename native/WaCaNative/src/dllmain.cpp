@@ -13,6 +13,7 @@
 #include "MinHook.h"
 #include "appearance.h"
 #include "camera.h"
+#include "gcguard.h"
 #include "saves.h"
 #include "bridge.h"
 #include "input.h"
@@ -54,6 +55,7 @@ public:
             return;
         }
         render::Install();
+        gcguard::Install();          // (an engine crash in the GC purge at start-up / a level load - gcguard.cpp)
         keys::Install();
         input::Install(dir);
         text::Install(input::FNameCtor());
