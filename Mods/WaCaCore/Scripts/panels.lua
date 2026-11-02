@@ -9,11 +9,12 @@
 local Panels = {}
 
 local WaCa, log
-local cfg = { on = true, below = 760, step = 480, right = 0 }  -- (step: a panel with a place, an activity and a goal is ~440 units high, VM)
+local cfg = { on = true, below = 760, step = 480, right = 0, height = 440, bottom = 140, offset = 120 }  -- (step: a panel with a place, an activity and a goal is ~440 units high, VM)
 local order = {}                  -- panel ids, first come first
 local status = {}                 -- id -> its latest status
 local drawn = {}                  -- id -> its widget's full name
 local hudName                     -- the HUD the panels are in
+local lastFit
 
 local VISIBLE, COLLAPSED, HIDDEN, HIT_TEST_INVISIBLE = 0, 1, 2, 4
 
@@ -76,10 +77,32 @@ local function draw()
     local sorted = {}
     for i, id in ipairs(order) do sorted[#sorted + 1] = { id = id, i = i, o = tonumber(status[id] and status[id].order) or 100 } end
     table.sort(sorted, function(a, b) if a.o ~= b.o then return a.o < b.o end return a.i < b.i end)
+    -- (MORE THAN FIT: the panels scaled down together so the stack ends above the screen's foot - the third of three
+    -- was cut off at the bottom, VM 2026-11-02. The HUD is 2160 units high; a panel ~cfg.height; at most down to 60%)
+    local shown = 0
+    for _, e in ipairs(sorted) do if status[e.id] then shown = shown + 1 end end
+    local top = game.Slot:GetLayout().Offsets.Top + cfg.below
+    local scale, fit = 1, shown
+    if shown > 0 then
+        -- (the panel's content draws ~Offset units below its slot's top - measured on the VM: 1210 -> 1330)
+        local room = 2160 - cfg.bottom - top - cfg.offset
+        -- (the most panels that fit at 60% or more - each at the largest scale that fits that many)
+        for n = shown, 1, -1 do
+            local s = math.min(1, room / ((n - 1) * cfg.step + cfg.height))
+            if s >= 0.6 or n == 1 then scale, fit = math.min(1, s), n break end
+        end
+        if fit < shown and fit ~= lastFit then
+            log("panels: %d of %d fit on the screen - the rest wait for room (%.0f free, at %.0f%%)", fit, shown, room,
+                scale * 100)
+        end
+    end
+    lastFit = fit
     for _, e in ipairs(sorted) do
         local id = e.id
         local w = drawn[id] and StaticFindObject(drawn[id])
-        if status[id] then
+        if status[id] and k >= fit then
+            if w and w:IsValid() then w:SetVisibility(COLLAPSED) end
+        elseif status[id] then
             if not (w and w:IsValid()) then
                 w = lib:Create(hud, game:GetClass(), pc)
                 canvas:AddChildToCanvas(w)
@@ -88,9 +111,13 @@ local function draw()
             end
             local layout = game.Slot:GetLayout()
             layout.Offsets.Left = layout.Offsets.Left + cfg.right
-            layout.Offsets.Top = layout.Offsets.Top + cfg.below + k * cfg.step
+            layout.Offsets.Top = layout.Offsets.Top + cfg.below + k * cfg.step * scale
             w.Slot:SetLayout(layout)
             w.Slot:SetAutoSize(false)
+            pcall(function()
+                w:SetRenderTransformPivot({ X = 0, Y = 0 })
+                w:SetRenderScale({ X = scale, Y = scale })
+            end)
             fill(w, status[id])
             k = k + 1
         elseif w and w:IsValid() then
@@ -108,6 +135,9 @@ function Panels.Init(c)
     cfg.below = tonumber(p.Below or "") or cfg.below
     cfg.step = tonumber(p.Step or "") or cfg.step
     cfg.right = tonumber(p.Right or "") or cfg.right
+    cfg.height = tonumber(p.Height or "") or cfg.height
+    cfg.bottom = tonumber(p.Bottom or "") or cfg.bottom
+    cfg.offset = tonumber(p.Offset or "") or cfg.offset
     if not cfg.on then log("panels: off (panels.ini [Panels] On = 0)") return end
     WaCa.On("HudPanel", function(id, s)
         id = tostring(id or "")
