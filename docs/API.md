@@ -27,6 +27,21 @@ WaCa.On("MyEvent", function(manager, id) end) -- a 5th argument hands one parame
 `WaCa.Watch(function, class, event, when)`: `when` = `"pre"` (before the function runs) or `"post"` (default).
 Events between mods: [EVENTS.md](EVENTS.md).
 
+## No object is not nil - `WaCa.Live(o)`
+
+Where there is no object, UE4SS hands back a *wrapper of NULL* - not `nil` - from `GetOwner()`, `GetParent()`,
+`FindFirstOf`, `StaticFindObject` and object fields (a component's owner while a level unloads, the sixth parent of a
+widget, a manager on the main menu). **Any call on such a wrapper** - `GetClass()`, `GetFullName()`, a field - crashes
+the game natively (UE4SS+0x2aed57, "reading address 0x10"), and **`pcall` cannot catch it**. `IsValid()` itself is
+safe. So never chain through an object that might not be there:
+
+```lua
+local owner = WaCa.Live(comp:GetOwner())          -- the object, or nil
+if owner then log("%s", owner:GetFullName()) end
+-- inside a pcall, turn "no object" into a Lua error it CAN catch:
+(WaCa.Live(FindFirstOf("SwtQuestSequencerManager")) or error("no manager")).ActiveSequences:ForEach(...)
+```
+
 ## Menus or gameplay?
 `WaCa.InMenu()` is true while a menu is up (any screen that isn't the gameplay screen or an overlay over it, or a
 popup on the gameplay screen - the pause menu, the map). `WaCa.MenuShowing(leaving)` the same with `nil` while no

@@ -538,6 +538,15 @@ function WaCa.SetUIIcon(row, iconKey)
     return WaCa.Command(string.format("SetUIKey|%X|%s||%s", tbl:GetAddress(), row, path))
 end
 
+-- THE OBJECT IF IT IS LIVE, ELSE NIL (2026-11-02 - the P3 crash UE4SS+0x2aed57, "reading 0x10", 19 reports): where
+-- there is no object, UE4SS hands back a wrapper of NULL - not nil - from GetOwner / GetParent / FindFirstOf /
+-- StaticFindObject / an object field; ANY call on it (GetClass, GetFullName, a field) crashes the game natively, and
+-- pcall can't catch that. IsValid itself is safe. Use: local o = WaCa.Live(comp:GetOwner()); if o then ... end
+function WaCa.Live(o)
+    if o ~= nil and type(o) == "userdata" and o:IsValid() then return o end
+    return nil
+end
+
 -- a simple ini reader: { [section] = { key = value } }, keys in file order in section.__order; the second result is
 -- the section names in file order (2026-11-02: a list of [Role.*] answers had no order to go by)
 function WaCa.ReadIni(path)
@@ -1042,7 +1051,7 @@ function WaCa.BlendLooks(a, b)
     end
     local pool, total = {}, 0
     pcall(function()
-        FindFirstOf("WrcNPCGenerationManager").RemainingPreffixes:ForEach(function(_, e)
+        (WaCa.Live(FindFirstOf("WrcNPCGenerationManager")) or error("no NPC generation manager")).RemainingPreffixes:ForEach(function(_, e)
             local r = e:get()
             local id = r.Preffix_ID:ToString()
             local w = 1
@@ -1510,7 +1519,8 @@ function WaCa.PlayerCats(withPreview)
     local playerPrint
     if pawnName then
         for _, comp in ipairs(FindAllOf("SwtAdventureCustomizableMeshComponent") or {}) do
-            if comp:IsValid() and comp:GetOwner():GetFullName() == pawnName then
+            local owner = comp:IsValid() and WaCa.Live(comp:GetOwner())
+            if owner and owner:GetFullName() == pawnName then
                 table.insert(out, comp)
                 playerPrint = playerPrint or WaCa.CatFingerprint(comp.CustomData)
             end
