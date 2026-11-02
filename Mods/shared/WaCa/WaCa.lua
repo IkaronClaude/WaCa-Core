@@ -538,11 +538,12 @@ function WaCa.SetUIIcon(row, iconKey)
     return WaCa.Command(string.format("SetUIKey|%X|%s||%s", tbl:GetAddress(), row, path))
 end
 
--- a simple ini reader: { [section] = { key = value } }, keys in file order in section.__order
+-- a simple ini reader: { [section] = { key = value } }, keys in file order in section.__order; the second result is
+-- the section names in file order (2026-11-02: a list of [Role.*] answers had no order to go by)
 function WaCa.ReadIni(path)
     local f = io.open(path, "r")
     if not f then return nil end
-    local out, section = {}, ""
+    local out, section, sections = {}, "", {}
     out[section] = { __order = {} }
     for line in f:lines() do
         line = line:gsub("^%s+", ""):gsub("%s+$", "")
@@ -550,6 +551,7 @@ function WaCa.ReadIni(path)
             local s = line:match("^%[(.+)%]$")
             if s then
                 section = s
+                if not out[section] then sections[#sections + 1] = s end
                 out[section] = out[section] or { __order = {} }
             else
                 local k, v = line:match("^([^=]+)=(.*)$")
@@ -562,7 +564,7 @@ function WaCa.ReadIni(path)
         end
     end
     f:close()
-    return out
+    return out, sections
 end
 
 -- the enabled UE4SS mods, in load order: Mods/mods.txt's "<Mod> : 1" lines first, then every other folder with an
@@ -627,9 +629,11 @@ local function noteConflict(text)
     end)
 end
 
+-- (out.__order = the section names in order: the mod's own file's, then each pack's new ones in load order)
 function WaCa.ReadContent(basePath, name)
-    local out = WaCa.ReadIni(basePath) or {}
-    out.__order = out.__order or {}
+    local out, sections = WaCa.ReadIni(basePath)
+    out = out or {}
+    out.__order = sections or {}
     local modsDir, own = basePath:match("^(.*)[/\\]([^/\\]+)[/\\]config[/\\][^/\\]+$")
     local function owned(t, mod)
         t.__mods = { mod }
@@ -639,8 +643,10 @@ function WaCa.ReadContent(basePath, name)
     for s, t in pairs(out) do if s ~= "__order" and type(t) == "table" then owned(t, own or "?") end end
     if not modsDir then return out end
     for _, mod in ipairs(WaCa.EnabledMods(modsDir)) do
-        local add = mod ~= own and WaCa.ReadIni(modsDir .. "/" .. mod .. "/content/" .. name .. ".ini")
-        for section, t in pairs(add or {}) do
+        local add, addSections = nil, {}
+        if mod ~= own then add, addSections = WaCa.ReadIni(modsDir .. "/" .. mod .. "/content/" .. name .. ".ini") end
+        for _, section in ipairs(addSections or {}) do
+            local t = add[section]
             if section ~= "" and section ~= "__order" and type(t) == "table" then
                 -- (Replaces = <Mod>/<Section>: that mod's section goes, this one takes its place - whole)
                 local rMod, rSection = tostring(t.Replaces or ""):match("^%s*([^/]+)/(.-)%s*$")
@@ -660,6 +666,7 @@ function WaCa.ReadContent(basePath, name)
                 if not into then
                     owned(t, mod)
                     out[section] = t
+                    table.insert(out.__order, section)
                 else
                     table.insert(into.__mods, mod)
                     into.__owner = into.__owner or {}
