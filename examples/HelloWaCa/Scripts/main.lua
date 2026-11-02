@@ -1,6 +1,7 @@
 -- HelloWaCa: a complete small WaCa mod to copy. Copy this folder to ue4ss\Mods\<YourMod> (keep enabled.txt) and
 -- rename it. It shows: reacting to the game's events, an event from another WaCa mod, a value kept per save slot,
--- and a game text replaced - plus content/text.ini, the same without code.
+-- a key of its own, a part in a story (Clan Life's Hook: step) and a game text replaced - plus content/text.ini, the
+-- same without code.
 local WaCa = require("WaCa")
 local function log(fmt, ...) print(string.format("[HelloWaCa] " .. fmt .. "\n", ...)) end
 if not WaCaNative_Command then log("WaCa Core is missing - install it first") return end
@@ -31,6 +32,23 @@ end)
 -- your own event, for other mods (plain data: it reaches every mod using WaCa)
 WaCa.On("Started", function()
     WaCa.Publish("hello.ready", { v = 1, greeting = "Hello from HelloWaCa" }, true)
+end)
+
+-- your own key (a player can move it in WaCa Keybinds & Mouse's keybinds.ini [ModKeys] HelloWaCa.Greet = <Key>)
+local greetKey = WaCa.ModKey("HelloWaCa", "Greet", "H", "say hello")
+WaCa.On("KeyDown", function(_, name)
+    if tostring(name) ~= greetKey or WaCa.InMenu() then return end
+    WaCa.Emit("ShowLine", "Hello from HelloWaCa!")              -- (a line on screen - WaCa Cutscenes / Clan Life show it)
+end)
+
+-- a part of a story (WaCa Clan Life): a story step "Hook: HelloGreeting" runs this, and the scene waits until it says
+-- it's done. Announce the hook, then answer StoryHook for its name.
+WaCa.Publish("hook.HelloGreeting", true, true)
+WaCa.On("StoryHook", function(name)
+    if name ~= "HelloGreeting" then return end
+    log("the story asked for HelloGreeting")
+    WaCa.Emit("ShowLine", "HelloWaCa's part of the story: a greeting.")
+    ExecuteInGameThreadWithDelay(3000, function() WaCa.Emit("StoryHookDone", "HelloGreeting") end)
 end)
 
 WaCa.Ready()

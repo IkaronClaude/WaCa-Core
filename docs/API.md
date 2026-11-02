@@ -152,6 +152,12 @@ hint icon.
 The key is announced (`keys.mod` `{ mod, name, key, label }`) so the controls screen can warn when a player gives a
 game command the same key ("F is also ClanLife's key to report a finished task"). Call it at load, for keys that are on.
 
+## A part in a story (WaCa Clan Life's `Hook:` step)
+Every UE4SS mod runs in its own Lua state, so a story step can't call your functions directly. Announce the hook and
+answer for it: `WaCa.Publish("hook.<Name>", true, true)`, then `WaCa.On("StoryHook", function(name) ... end)`; when your
+part is over, `WaCa.Emit("StoryHookDone", name)`. A story's `Hook: <Name>` waits for that (at most Clan Life's
+`events.ini [Events] HookWait`, 60 s); a hook nobody announced is logged and skipped. HelloWaCa has one.
+
 ## The fight's party
 `WaCa.SetCombatParty({ "TheRegretfulWarrior", 31 })` (role names or values) - the next fights put those story cats
 beside your cat instead of the game's own party; the game builds them its own way (looks, stats, moves). `nil` gives
