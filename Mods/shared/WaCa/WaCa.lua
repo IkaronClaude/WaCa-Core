@@ -1170,6 +1170,20 @@ function WaCa.SpawnCat(look, at, yaw, scale)
         cls = StaticFindObject(CAT_CLASS)
     end
     if not (cls and cls:IsValid()) or not at then return nil end
+    -- (ON THE GROUND: this cat's feet are its origin - a cat spawned at your cat's place (its capsule's middle) floated
+    -- 36 cm, on a slope 1.45 m: library exercise 2026-11-02. Set down on the ground below `at` - within 2 m above, 10 m
+    -- below; a point with no ground there (a spawn tucked away under the map) keeps its height.)
+    pcall(function()
+        local K = StaticFindObject("/Script/Engine.Default__KismetSystemLibrary")
+        local ctx = FindFirstOf("PlayerController")
+        local ignore = {}
+        pcall(function() if ctx.Pawn then ignore[1] = ctx.Pawn end end)
+        local hit = {}
+        if K:LineTraceSingle(ctx, { X = at.X, Y = at.Y, Z = at.Z + 200 }, { X = at.X, Y = at.Y, Z = at.Z - 1000 }, 0, true,
+                ignore, 0, hit, true, { R = 0, G = 0, B = 0, A = 0 }, { R = 0, G = 0, B = 0, A = 0 }, 0) then
+            at = { X = at.X, Y = at.Y, Z = hit.ImpactPoint.Z }
+        end
+    end)
     local gs = StaticFindObject("/Script/Engine.Default__GameplayStatics")
     local half = math.rad((yaw or 0) / 2)
     local tf = { Translation = { X = at.X, Y = at.Y, Z = at.Z }, Rotation = { X = 0, Y = 0, Z = math.sin(half), W = math.cos(half) },

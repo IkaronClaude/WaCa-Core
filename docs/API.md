@@ -111,7 +111,8 @@ WaCa.ZonePlace("I-")                                     -- the middle of one of
 WaCa.StoryCats("ShadowClan", "Leader")                  -- the save's story cats of a clan / part (any clan):
                                                          --   { key, name, clan, role, look } - look = the game's text form
 WaCa.ImportLook(cat, look)                               -- dress a cat from such a look
-WaCa.SpawnCat(look, at, yaw, scale) / WaCa.Despawn(cat)        -- an extra cat in the world (the game's cutscene cat, no AI)
+WaCa.SpawnCat(look, at, yaw, scale) / WaCa.Despawn(cat)        -- an extra cat in the world (the game's cutscene cat, no AI),
+                                                         --   set down on the ground below `at` (none there: at `at`)
 WaCa.HitMaterialName(hit[, slot])                        -- the material name on what a trace hit, or nil (null-safe)
 WaCa.PlayMontage(target, montage[, rate, forceMode])     -- a montage on a cat or mesh, null-safe -> its length or nil
 WaCa.StopMontage(target[, blend])                        -- stop it, null-safe
