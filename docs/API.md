@@ -172,6 +172,12 @@ button or wheel reaches the game until `|0` - for a mod's own menu on top of the
 (`WaCaKeybinds\config\keybinds.ini` applied to the live bindings now; the key icons and hints follow it too),
 `MouseLook|on|yaw|pitch`, `CameraRelativeMove|0/1`, and the others in `native/WaCaNative/src/commands.cpp`.
 
+## A panel on the HUD
+`WaCa.HudPanel(id, { title, where, activity, goal, got, need, done, order })` shows a panel in the game's own quest
+look, under the game's quest panel; WaCa Core draws every mod's panels, stacked (`order`: lower further up, 100 when
+not given), and has every mod send them again when it reloads. `WaCa.HudPanel(id, nil)` takes it away. Spacing:
+WaCaCore `config/panels.ini`. WaCa Clan Life's day status is one (order 0); HelloWaCa has one.
+
 ## Widgets on screen
 `WaCa.WidgetRect(widget)` -> left, top, right, bottom in desktop pixels (where it was last drawn - read natively: a
 widget's geometry can't be read from Lua), `WaCa.MouseOver(widget)` -> is the mouse over it, and its area.

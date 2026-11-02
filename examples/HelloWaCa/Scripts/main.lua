@@ -36,9 +36,14 @@ end)
 
 -- your own key (a player can move it in WaCa Keybinds & Mouse's keybinds.ini [ModKeys] HelloWaCa.Greet = <Key>)
 local greetKey = WaCa.ModKey("HelloWaCa", "Greet", "H", "say hello")
+local greetings = 0
 WaCa.On("KeyDown", function(_, name)
     if tostring(name) ~= greetKey or WaCa.InMenu() then return end
     WaCa.Emit("ShowLine", "Hello from HelloWaCa!")              -- (a line on screen - WaCa Cutscenes / Clan Life show it)
+    -- a panel of its own on the HUD (WaCa Core stacks it under the game's quest panel and any other mod's)
+    greetings = greetings + 1
+    WaCa.HudPanel("HelloWaCa.greetings", { title = "HelloWaCa", activity = "Say hello:", goal = "Greetings",
+                                           got = math.min(greetings, 3), need = 3, done = greetings >= 3 })
 end)
 
 -- a part of a story (WaCa Clan Life): a story step "Hook: HelloGreeting" runs this, and the scene waits until it says

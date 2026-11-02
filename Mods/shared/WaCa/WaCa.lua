@@ -1200,6 +1200,22 @@ function WaCa.SpawnCat(look, at, yaw, scale)
     return cat
 end
 
+-- A PANEL ON THE HUD (the game's current-objective look, under its quest panel - WaCa Core draws them all, stacked):
+-- WaCa.HudPanel("MyMod.status", { title = "...", where = "...", activity = "...", goal = "...", got = 1, need = 3,
+-- done = false, order = 100 }) shows or updates it (order: lower further up); WaCa.HudPanel(id, nil) takes it away.
+-- (each mod remembers what it sent: WaCa Core asks again when it starts - a reload of Core lost every panel)
+local myPanels, panelsAsked = {}, false
+function WaCa.HudPanel(id, status)
+    myPanels[id] = status or false
+    if not panelsAsked then
+        panelsAsked = true
+        WaCa.On("HudPanelsAgain", function()
+            for pid, s in pairs(myPanels) do if s then WaCa.Emit("HudPanel", pid, s) end end
+        end)
+    end
+    WaCa.Emit("HudPanel", id, status)
+end
+
 function WaCa.Despawn(cat)
     if cat and pcall(function() return cat:IsValid() end) and cat:IsValid() then pcall(function() cat:K2_DestroyActor() end) end
 end

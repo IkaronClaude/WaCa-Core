@@ -143,6 +143,8 @@ WaCa.On("ScreenShown", function(screen)
 end)
 
 -- developer traces (config/dev.ini - absent = off)
+-- panels on the HUD for any mod (WaCa.HudPanel - panels.lua)
+require("panels").Init({ WaCa = WaCa, log = log, modDir = modDir })
 local Dev = require("dev")
 Dev.Init({ WaCa = WaCa, log = log, modDir = modDir })
 
