@@ -27,6 +27,14 @@ WaCa.On("MyEvent", function(manager, id) end) -- a 5th argument hands one parame
 `WaCa.Watch(function, class, event, when)`: `when` = `"pre"` (before the function runs) or `"post"` (default).
 Events between mods: [EVENTS.md](EVENTS.md).
 
+## A nameplate on a cat you spawned - `WaCa.Nameplate(actor, name, role[, height])`
+
+The game floats a name and rank only over its own quest NPCs; a cat from `WaCa.SpawnCat` has none. `WaCa.Nameplate`
+puts the game's own plate widget (`WBP_GuiQuestActorName`) on the actor - a screen-space widget component, `height` cm
+over its origin (90 by default) - and returns the widget; called again it reuses the component. For the rank line use
+`WaCa.PlateRole("<a game cat's name>")`: the text that cat's plate shows, so it is the game's own word in the player's
+language.
+
 ## No object is not nil - `WaCa.Live(o)`
 
 Where there is no object, UE4SS hands back a *wrapper of NULL* - not `nil` - from `GetOwner()`, `GetParent()`,

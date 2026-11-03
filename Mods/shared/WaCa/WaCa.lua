@@ -1256,6 +1256,62 @@ function WaCa.HudPanel(id, status)
     WaCa.Emit("HudPanel", id, status)
 end
 
+-- A NAMEPLATE ON A CAT WE PUT IN THE WORLD (2026-11-03: a newcomer / a kit from SpawnCat had no name over its head - the
+-- game gives plates only to its quest NPCs): the game's own plate widget (WBP_GuiQuestActorName - name, rank) on a
+-- screen-space widget component of the actor, height cm over its origin. role = the rank line's text (best: copied
+-- from a game cat's plate - WaCa.PlateRole(name) - so it is the game's own word in the game's language). Returns the
+-- widget, or nil.
+WaCa.PLATE_WIDGET = "/Game/Art/UXD/Blueprints/Controls/gui_actor_widgets/WBP_GuiQuestActorName.WBP_GuiQuestActorName_C"
+function WaCa.Nameplate(actor, name, role, height)
+    local a = WaCa.Live(actor)
+    if not a then return nil end
+    local ok, w = pcall(function()
+        local cls = StaticFindObject("/Script/UMG.WidgetComponent")
+        local comp
+        -- (a widget component already holding a plate - from an earlier call: used again, not a second one added)
+        for _, c in ipairs(a:K2_GetComponentsByClass(cls) or {}) do
+            local cc = (c.get and c:get()) or c
+            pcall(function()
+                local held = WaCa.Live(cc) and WaCa.Live(cc:GetUserWidgetObject())
+                if held and held:GetClass():GetFName():ToString() == "WBP_GuiQuestActorName_C" then comp = cc end
+            end)
+        end
+        if not comp then
+            comp = a:AddComponentByClass(cls, false, { Translation = { X = 0, Y = 0, Z = height or 90 },
+                Rotation = { X = 0, Y = 0, Z = 0, W = 1 }, Scale3D = { X = 1, Y = 1, Z = 1 } }, false)
+        end
+        comp:SetWidgetSpace(1)                         -- (screen space: faces the camera, keeps its size)
+        comp:SetDrawAtDesiredSize(true)
+        local pc
+        for _, c in ipairs(FindAllOf("SwtPlayerController") or {}) do if c:IsValid() and c.Player then pc = c end end
+        local widget = StaticFindObject("/Script/UMG.Default__WidgetBlueprintLibrary"):Create(pc, WaCa.LoadAsset(WaCa.PLATE_WIDGET), pc)
+        comp:SetWidget(widget)                          -- (SetWidgetClass isn't callable here; a made widget is)
+        widget.mcGuiTextName:SetText(FText(tostring(name or "")))
+        widget.mcGuiTextRole:SetText(FText(tostring(role or "")))
+        pcall(function() widget.mcGuiTextExtraInfo:SetText(FText("")) end)
+        widget:SetVisibility(4)
+        comp:SetVisibility(true, true)
+        return widget
+    end)
+    return ok and w or nil
+end
+
+-- the rank line a game cat's nameplate shows ("Warrior" in the game's language), by the cat's name - or nil
+function WaCa.PlateRole(catName)
+    local role
+    for _, t in ipairs(FindAllOf("TextBlock") or {}) do
+        pcall(function()
+            if not role and t:GetFName():ToString() == "mcGuiTextName" and t:GetText():ToString() == catName then
+                local plate = t:GetOuter():GetOuter()
+                if plate:GetClass():GetFName():ToString() == "WBP_GuiQuestActorName_C" then
+                    role = plate.mcGuiTextRole:GetText():ToString()
+                end
+            end
+        end)
+    end
+    return role ~= "" and role or nil
+end
+
 function WaCa.Despawn(cat)
     if cat and pcall(function() return cat:IsValid() end) and cat:IsValid() then pcall(function() cat:K2_DestroyActor() end) end
 end
