@@ -1725,7 +1725,7 @@ end
 -- THE CATS ABOUT (library exercise 2026-10-30: Clan Life's cast and WaCa Cutscenes both had to find cats by name / part
 -- - one picture of them here). WaCa.CatName(cat) -> the name the game shows for a cat (its name ids -> the text
 -- table: a WaCa Looks roster Name included), or nil. WaCa.Cats() -> every cat shown now - the camp's named (quest)
--- cats and the walking cats - nearest to your cat first: { actor, name, clan, giver, story, kind = "quest" | "walker",
+-- cats and the walking cats - nearest to your cat first: { actor, name, clan, giver, story, kind = "quest" | "walker" | "placed" (a cat a mod put in the world),
 -- dist } (giver: EGiverRole name - Leader, Deputy ...; story: ENarrativeRole name - RiverClanDeputy ...).
 local catEnums = {}
 local function catEnum(path, value)
@@ -1819,10 +1819,12 @@ function WaCa.Cats()
         pcall(function() if a:IsValid() and catShown(a) then add(a, "", "", "walker") end end)
     end
     -- (cats a mod put in the world - WaCa.SpawnCat: a newcomer, a kit - by their name; a cutscene's B = Emberheart found
-    -- nobody, 2026-11-03)
+    -- nobody, 2026-11-03). Kind "placed", not "spawned": WaCa Cutscenes reads "spawned" as a cat it brought in for the
+    -- scene and removes it at the end - a newcomer cast by its role was gone from the camp after its cutscene (VM
+    -- 2026-11-03, library pre-work)
     for _, a in ipairs(FindAllOf("BP_WrcSK_Customization_Cat_C") or {}) do
         pcall(function()
-            if a:IsValid() and catShown(a) and WaCa.CatName(a) then add(a, "", "", "spawned") end
+            if a:IsValid() and catShown(a) and WaCa.CatName(a) then add(a, "", "", "placed") end
         end)
     end
     table.sort(out, function(x, y) return x.dist < y.dist end)
