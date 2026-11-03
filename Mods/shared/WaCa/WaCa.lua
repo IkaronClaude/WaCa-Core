@@ -1789,6 +1789,13 @@ function WaCa.Cats()
     for _, a in ipairs(FindAllOf("SwtAdventureWalkingNPC") or {}) do
         pcall(function() if a:IsValid() and catShown(a) then add(a, "", "", "walker") end end)
     end
+    -- (cats a mod put in the world - WaCa.SpawnCat: a newcomer, a kit - by their name; a cutscene's B = Emberheart found
+    -- nobody, 2026-11-03)
+    for _, a in ipairs(FindAllOf("BP_WrcSK_Customization_Cat_C") or {}) do
+        pcall(function()
+            if a:IsValid() and catShown(a) and WaCa.CatName(a) then add(a, "", "", "spawned") end
+        end)
+    end
     table.sort(out, function(x, y) return x.dist < y.dist end)
     return out
 end
