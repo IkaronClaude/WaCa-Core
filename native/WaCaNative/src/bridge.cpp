@@ -85,6 +85,7 @@ struct ModState {
     LuaMadeSimple::Lua* thread = nullptr;     // events run here; created by LuaMadeSimple, so UE4SS knows it
     bool ready = false;
     bool started = false;                     // "Started" delivered
+    std::atomic<bool> gone{false};            // its mod stopped while a delivery held the list: nothing more goes in
 };
 
 struct Watch {
@@ -103,6 +104,16 @@ std::vector<std::unique_ptr<ModState>> g_states;
 // thread delivers into them - a removal under a delivery freed the state it ran in. Held while delivering (recursive:
 // a handler's calls raise more events) and while adding / removing.
 std::recursive_timed_mutex g_statesMutex;
+// A START / STOP THE LOADER COULDN'T WAIT FOR (2026-11-03): LuaStarted / LuaStopping wait 2 s for g_statesMutex, then
+// went on WITHOUT it and changed g_states while the game thread's delivery was looping over it. Now the change is
+// queued instead (a stopped mod's state marked gone at once - Deliver skips it) and the game thread applies the queue
+// under the lock, between deliveries (depth 0, so no outer loop has the vector change under it). g_byMod finds a
+// mod's state without touching g_states (its own small lock).
+std::mutex g_pendingMutex;
+std::vector<std::unique_ptr<ModState>> g_pendingAdd;
+std::vector<ModState*> g_pendingRemove;
+std::map<LuaMod*, ModState*> g_byMod;
+std::atomic<bool> g_havePending{false};
 std::vector<Watch> g_watches;
 // mods register / drop watches on UE4SS's mod thread (start-up, reloads) while the game thread dispatches - the list is
 // only touched under this lock, and events are delivered after it's released (a handler may add watches). A crash at
@@ -145,6 +156,24 @@ bool ModsLoading() {
 }
 std::thread::id g_gameThread{};
 int g_depth = 0;                              // nested events (a handler whose calls fire more events)
+
+// the queued starts / stops applied - the game thread, g_statesMutex held, not inside a delivery
+void ApplyPendingStates() {
+    if (!g_havePending.load(std::memory_order_acquire) || g_depth != 0) return;
+    std::lock_guard<std::mutex> lock(g_pendingMutex);
+    size_t removed = 0, added = g_pendingAdd.size();
+    for (ModState* gone : g_pendingRemove) {
+        removed += std::erase_if(g_states, [gone](const std::unique_ptr<ModState>& u) { return u.get() == gone; });
+        // (started and stopped before it was ever applied)
+        std::erase_if(g_pendingAdd, [gone](const std::unique_ptr<ModState>& u) { return u.get() == gone; });
+    }
+    added = g_pendingAdd.size();
+    for (auto& u : g_pendingAdd) g_states.push_back(std::move(u));
+    g_pendingAdd.clear();
+    g_pendingRemove.clear();
+    g_havePending.store(false, std::memory_order_release);
+    logx::Line(L"[bridge] queued mod states applied: %zu added, %zu removed", added, removed);
+}
 constexpr int kMaxDepth = 8;
 
 std::wstring Wide(std::string_view s) {
@@ -162,11 +191,11 @@ bool OnGameThread() {
 }
 
 ModState* StateOf(const LuaMadeSimple::Lua& lua) {
-    std::lock_guard<std::recursive_timed_mutex> lock(g_statesMutex);
+    // (by the registry: a state still queued is found too, a gone one isn't)
     LuaMod* mod = get_mod_ref(lua);
-    for (auto& s : g_states)
-        if (s->mod == mod) return s.get();
-    return nullptr;
+    std::lock_guard<std::mutex> lock(g_pendingMutex);
+    auto it = g_byMod.find(mod);
+    return it == g_byMod.end() || it->second->gone.load(std::memory_order_acquire) ? nullptr : it->second;
 }
 
 std::string Narrow(std::wstring_view s) {
@@ -221,7 +250,7 @@ ParamValue ReadParam(FProperty* p, void* params) {
 
 void Deliver(ModState& s, const std::string& event, UObject* object, std::initializer_list<std::string> args,
              const ParamValue* extra = nullptr) {
-    if (!s.ready || !s.thread || ModsLoading()) return;
+    if (s.gone.load(std::memory_order_acquire) || !s.ready || !s.thread || ModsLoading()) return;
     const LuaMadeSimple::Lua& lua = *s.thread;
     if (!lua.is_global_function("WaCaNative_OnEvent")) return;
     if (g_depth >= kMaxDepth) {
@@ -250,6 +279,7 @@ void Deliver(ModState& s, const std::string& event, UObject* object, std::initia
 
 void DeliverStarted() {
     std::lock_guard<std::recursive_timed_mutex> lock(g_statesMutex);
+    ApplyPendingStates();
     g_startPending.store(false, std::memory_order_relaxed);
     for (size_t i = 0; i < g_states.size(); ++i) {
         ModState& s = *g_states[i];
@@ -292,6 +322,7 @@ void OnProcessEvent(bool post, UObject* context, UFunction* function, void* para
     if (!post && context && function && std::chrono::steady_clock::now() <= g_traceUntil) TraceCall(context, function);
     if (ModsLoading()) return;                                 // (the loader thread is still starting mods)
     std::lock_guard<std::recursive_timed_mutex> statesLock(g_statesMutex);
+    ApplyPendingStates();
     if (g_startPending.load(std::memory_order_relaxed)) DeliverStarted();
     if (g_watchCount.load(std::memory_order_relaxed) == 0 || !context || !function) return;
     const FName name = function->GetNamePrivate();
@@ -1222,11 +1253,24 @@ void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
     lua.register_function("WaCaNative_SetTableField", &LuaSetTableField);
     {
         // (the loader thread waits for a delivery in progress - at most 2 s: UE4SS may hold a lock of its own here
-        // that the delivery's Lua is waiting for; then on without it, as before)
+        // that the delivery's Lua is waiting for; then the state is QUEUED - the game thread adds it between
+        // deliveries; it used to be pushed without the lock, under the delivery's loop)
         bool locked = g_statesMutex.try_lock_for(std::chrono::seconds(2));
-        if (!locked) logx::Line(L"[bridge] %s starting while an event runs - added without waiting", modName.c_str());
-        g_states.push_back(std::move(state));
-        if (locked) g_statesMutex.unlock();
+        ModState* raw = state.get();
+        {
+            std::lock_guard<std::mutex> p(g_pendingMutex);
+            g_byMod[raw->mod] = raw;
+            if (!locked) {
+                g_pendingAdd.push_back(std::move(state));
+                g_havePending.store(true, std::memory_order_release);
+            }
+        }
+        if (locked) {
+            g_states.push_back(std::move(state));
+            g_statesMutex.unlock();
+        } else {
+            logx::Line(L"[bridge] %s starting while an event runs - queued, added between events", modName.c_str());
+        }
     }
 }
 
@@ -1237,19 +1281,35 @@ void LuaStopping(LuaMadeSimple::Lua& lua) {
     keys::SwallowAll(false);
     bool locked = g_statesMutex.try_lock_for(std::chrono::seconds(2));     // (as in LuaStarted)
     struct Unlock { bool on; ~Unlock() { if (on) g_statesMutex.unlock(); } } unlockAtEnd{locked};
-    if (!locked) logx::Line(L"[bridge] a mod stopping while an event runs - removed without waiting");
     LuaMod* mod = get_mod_ref(lua);
-    for (auto it = g_states.begin(); it != g_states.end(); ++it) {
-        if ((*it)->mod != mod) continue;
-        ModState* s = it->get();
-        {
-            std::lock_guard<std::mutex> lock(g_watchesMutex);
-            std::erase_if(g_watches, [s](const Watch& w) { return w.state == s; });
-            g_watchCount = g_watches.size();
+    ModState* s = nullptr;
+    {
+        std::lock_guard<std::mutex> p(g_pendingMutex);
+        auto it = g_byMod.find(mod);
+        if (it != g_byMod.end()) {
+            s = it->second;
+            g_byMod.erase(it);
         }
-        logx::Line(L"[bridge] %s stopped", s->name.c_str());
-        g_states.erase(it);
-        return;
+        if (s) {
+            s->gone.store(true, std::memory_order_release);      // (no delivery goes into it from now on)
+            if (!locked) {
+                g_pendingRemove.push_back(s);
+                g_havePending.store(true, std::memory_order_release);
+            }
+        }
+    }
+    if (!s) return;
+    {
+        std::lock_guard<std::mutex> lock(g_watchesMutex);
+        std::erase_if(g_watches, [s](const Watch& w) { return w.state == s; });
+        g_watchCount = g_watches.size();
+    }
+    if (locked) {
+        logx::Line(L"[bridge] %s stopped", s->name.c_str());   // (before the erase: it frees the state)
+        std::erase_if(g_states, [s](const std::unique_ptr<ModState>& u) { return u.get() == s; });
+    } else {
+        // (a delivery holds the list: the state stays in it, gone, till the game thread removes it between events)
+        logx::Line(L"[bridge] %s stopping while an event runs - marked gone, removed between events", s->name.c_str());
     }
 }
 
