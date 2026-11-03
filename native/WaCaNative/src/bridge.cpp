@@ -94,8 +94,8 @@ struct Watch {
     UClass* cls = nullptr;                    // resolved on first use (a class may load after the watch is made)
     bool post = true;
     std::string event;
-    std::wstring param;                       // a parameter to deliver too ("" = none)
-    FProperty* paramProp = nullptr;           // resolved with the function
+    std::wstring param;                       // parameters to deliver too, comma-separated ("" = none)
+    std::vector<FProperty*> paramProps;       // resolved with the function, one per name in param
     ModState* state = nullptr;
 };
 
@@ -249,7 +249,7 @@ ParamValue ReadParam(FProperty* p, void* params) {
 }
 
 void Deliver(ModState& s, const std::string& event, UObject* object, std::initializer_list<std::string> args,
-             const ParamValue* extra = nullptr) {
+             const std::vector<ParamValue>* extras = nullptr) {
     if (s.gone.load(std::memory_order_acquire) || !s.ready || !s.thread || ModsLoading()) return;
     const LuaMadeSimple::Lua& lua = *s.thread;
     if (!lua.is_global_function("WaCaNative_OnEvent")) return;
@@ -263,13 +263,15 @@ void Deliver(ModState& s, const std::string& event, UObject* object, std::initia
         lua.set_string(event);
         if (object) LuaType::auto_construct_object(lua, object);
         else lua.set_nil();
-        if (extra) {
-            if (extra->kind == 1 && extra->object) LuaType::auto_construct_object(lua, extra->object);
-            else if (extra->kind == 2) lua.set_string(extra->text);
-            else lua.set_nil();
+        if (extras) {
+            for (const auto& extra : *extras) {
+                if (extra.kind == 1 && extra.object) LuaType::auto_construct_object(lua, extra.object);
+                else if (extra.kind == 2) lua.set_string(extra.text);
+                else lua.set_nil();
+            }
         }
         for (const auto& a : args) lua.set_string(a);
-        lua.call_function(2 + (extra ? 1 : 0) + static_cast<int32_t>(args.size()), 0);
+        lua.call_function(2 + (extras ? static_cast<int32_t>(extras->size()) : 0) + static_cast<int32_t>(args.size()), 0);
     } catch (const std::exception& e) {
         // the traceback is already in UE4SS.log (LuaMadeSimple's error handler)
         logx::Line(L"[bridge] %s: event %s failed: %s", s.name.c_str(), Wide(event).c_str(), Wide(e.what()).c_str());
@@ -326,7 +328,7 @@ void OnProcessEvent(bool post, UObject* context, UFunction* function, void* para
     if (g_startPending.load(std::memory_order_relaxed)) DeliverStarted();
     if (g_watchCount.load(std::memory_order_relaxed) == 0 || !context || !function) return;
     const FName name = function->GetNamePrivate();
-    struct Due { ModState* state; std::string event; ParamValue extra; bool hasExtra; };
+    struct Due { ModState* state; std::string event; std::vector<ParamValue> extras; bool hasExtra; };
     std::vector<Due> due;
     {
         std::lock_guard<std::mutex> lock(g_watchesMutex);
@@ -341,14 +343,34 @@ void OnProcessEvent(bool post, UObject* context, UFunction* function, void* para
                 due.push_back({w.state, w.event, {}, false});
                 continue;
             }
-            if (!w.paramProp) {
-                w.paramProp = function->FindProperty(FName(w.param.c_str(), FNAME_Find));
-                if (!w.paramProp) continue;
+            // (several parameters, comma-separated - "Command,InputEvent": library exercise 2026-11-03, a screen
+            // command arrives pressed and released and one parameter couldn't tell them apart)
+            if (w.paramProps.empty()) {
+                size_t start = 0;
+                bool all = true;
+                std::vector<FProperty*> found;
+                while (start <= w.param.size()) {
+                    size_t end = w.param.find(L',', start);
+                    std::wstring one = w.param.substr(start, end == std::wstring::npos ? std::wstring::npos : end - start);
+                    while (!one.empty() && one.front() == L' ') one.erase(one.begin());
+                    while (!one.empty() && one.back() == L' ') one.pop_back();
+                    if (!one.empty()) {
+                        FProperty* prop = function->FindProperty(FName(one.c_str(), FNAME_Find));
+                        if (!prop) { all = false; break; }
+                        found.push_back(prop);
+                    }
+                    if (end == std::wstring::npos) break;
+                    start = end + 1;
+                }
+                if (!all || found.empty()) continue;
+                w.paramProps = std::move(found);
             }
-            due.push_back({w.state, w.event, ReadParam(w.paramProp, params), true});
+            std::vector<ParamValue> values;
+            for (FProperty* prop : w.paramProps) values.push_back(ReadParam(prop, params));
+            due.push_back({w.state, w.event, std::move(values), true});
         }
     }
-    for (auto& d : due) Deliver(*d.state, d.event, context, {}, d.hasExtra ? &d.extra : nullptr);
+    for (auto& d : due) Deliver(*d.state, d.event, context, {}, d.hasExtra ? &d.extras : nullptr);
 }
 
 // --- Lua functions (the calling Lua state is the argument; arguments are consumed from index 1) ---

@@ -173,7 +173,8 @@ end
 -- watch a UFunction (by name, on objects of a class) as an event; when = "pre" (before it runs) or "post" (default)
 -- param: a parameter of the function, handed to the handlers after the object - an object as itself (e.g. an anim
 -- notify's "MeshComp" - the notify is one object shared by every cat playing the animation), anything simple as text
--- (a name, a gameplay tag's name, a string, a number, "true" / "false", an enum's number)
+-- (a name, a gameplay tag's name, a string, a number, "true" / "false", an enum's number). Several, comma-separated
+-- ("Command,InputEvent"): each handed on in that order.
 function WaCa.Watch(functionName, classPath, event, when, param)
     local id = functionName .. "|" .. classPath .. "|" .. event
     if watched[id] then return true end
