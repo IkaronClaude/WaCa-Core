@@ -355,6 +355,15 @@ std::vector<std::wstring> BoundKeys(const std::wstring& command) {
     return out;
 }
 
+// an axis's keyboard / mouse keys with their scales as they are now: keybinds.ini's ("Default" expanded), else the
+// game's own (the controls screen's direction rows, 2026-11-02)
+std::vector<std::pair<std::wstring, float>> BoundAxisKeys(const std::wstring& axis) {
+    LoadConfig();
+    if (auto it = g_axes.find(axis); it != g_axes.end()) return AxisKeys(axis, it->second);
+    if (auto def = g_defaultAxes.find(axis); def != g_defaultAxes.end()) return def->second;
+    return {};
+}
+
 // keybinds.ini again, now: every command it names - or named before - gets its keys from it, or back from the
 // game's defaults when the file no longer names it. On the game thread (the engine's input is not locked).
 int ApplyNow() {

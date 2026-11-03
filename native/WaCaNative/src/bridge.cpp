@@ -1091,6 +1091,21 @@ int LuaCursorPos(const LuaMadeSimple::Lua& lua) {
     return 2;
 }
 
+// WaCaNative_BoundAxisKeys(axis) -> "W:1, S:-1": an axis's keyboard / mouse keys and scales as they are now
+// (keybinds.ini's, else the game's own; "" = unknown) - the controls screen's direction rows (input.cpp)
+int LuaBoundAxisKeys(const LuaMadeSimple::Lua& lua) {
+    if (!lua.is_string()) lua.throw_error("WaCaNative_BoundAxisKeys(axis)");
+    std::string out;
+    for (auto& [k, scale] : input::BoundAxisKeys(Wide(std::string(lua.get_string())))) {
+        if (!out.empty()) out += ", ";
+        char num[32];
+        snprintf(num, sizeof num, "%g", scale);
+        out += Narrow(k) + ":" + num;
+    }
+    lua.set_string(out);
+    return 1;
+}
+
 // WaCaNative_BoundKeys(command) -> "F, LeftMouseButton": the command's keyboard / mouse keys as they are now
 // (keybinds.ini's, else the game's own; "" = unknown) - the controls screen's clash check (input.cpp)
 int LuaBoundKeys(const LuaMadeSimple::Lua& lua) {
@@ -1181,6 +1196,7 @@ void LuaStarted(const std::wstring& modName, LuaMadeSimple::Lua& lua) {
     lua.register_function("WaCaNative_WidgetRect", &LuaWidgetRect);
     lua.register_function("WaCaNative_CursorPos", &LuaCursorPos);
     lua.register_function("WaCaNative_BoundKeys", &LuaBoundKeys);
+    lua.register_function("WaCaNative_BoundAxisKeys", &LuaBoundAxisKeys);
     lua.register_function("WaCaNative_DevAxisBindings", &LuaDevAxisBindings);
     lua.register_function("WaCaNative_DevWatchAxis", &LuaDevWatchAxis);
     lua.register_function("WaCaNative_DevWatchAddress", &LuaDevWatchAddress);

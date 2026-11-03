@@ -466,6 +466,29 @@ end
 -- (Button_A = Enter, Button_B / Button_Back = BackSpace, Button_X = E, ...). Rebinds a row; the icon is the game's
 -- own for that key (T_UI_Controller_Pc_<Key>_D) unless one is given, and kept as is when there's none.
 WaCa.UI_KEYS_TABLE = "/Game/Gameplay/DataTables/UXD/Buttons/DT_GamepadButtonsKeyboard.DT_GamepadButtonsKeyboard"
+
+-- A KEY'S ICON, THE GAME'S WAY (2026-11-03): the game's own key -> icon table, DT_Keys (UIButtonsMap rows: Key, Image),
+-- read once - the icons aren't all named after their keys (Up -> Arrow_Up, LeftShift -> Shift, SpaceBar -> Space,
+-- One -> 1, PageUp -> Prior); a guess from the key name missed those. Its soft Image column comes out as text through
+-- the engine's GetDataTableColumnAsString (a soft pointer can't be read from Lua). The texture's path, or nil.
+WaCa.KEY_ICONS_TABLE = "/Game/Gameplay/DataTables/UXD/DT_Keys.DT_Keys"
+local keyIcons
+function WaCa.KeyIcon(key)
+    if not keyIcons then
+        keyIcons = {}
+        pcall(function()
+            local t = WaCa.LoadAsset(WaCa.KEY_ICONS_TABLE)
+            local lib = StaticFindObject("/Script/Engine.Default__DataTableFunctionLibrary")
+            local keys = lib:GetDataTableColumnAsString(t, FName("Key"))
+            local images = lib:GetDataTableColumnAsString(t, FName("Image"))
+            for i = 1, #keys do
+                local k, img = keys[i]:get():ToString(), images[i] and images[i]:get():ToString() or ""
+                if k ~= "" and img ~= "" and img ~= "None" then keyIcons[k] = img end
+            end
+        end)
+    end
+    return keyIcons[tostring(key)]
+end
 function WaCa.SetUIKey(row, key, icon)
     local tbl = StaticFindObject(WaCa.UI_KEYS_TABLE)
     if not tbl or not tbl:IsValid() then
@@ -474,8 +497,9 @@ function WaCa.SetUIKey(row, key, icon)
     end
     if not tbl or not tbl:IsValid() then return false end
     if not icon then
+        -- (the game's own icon for the key - DT_Keys; else the one named after it)
         local name = string.format("T_UI_Controller_Pc_%s_D", key)
-        local path = string.format("/Game/Platforms/Windows/UXD/Textures/Controllers/Gameplay/%s.%s", name, name)
+        local path = WaCa.KeyIcon(key) or string.format("/Game/Platforms/Windows/UXD/Textures/Controllers/Gameplay/%s.%s", name, name)
         local ok, tex = pcall(LoadAsset, path)
         icon = ok and tex and tex:IsValid() and path or ""
     end

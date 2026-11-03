@@ -12,4 +12,5 @@ void* FNameCtor();
 int ApplyNow();
 // a command's (or axis's) keyboard / mouse keys as they are now - keybinds.ini's, else the game's own; empty = unknown
 std::vector<std::wstring> BoundKeys(const std::wstring& command);
+std::vector<std::pair<std::wstring, float>> BoundAxisKeys(const std::wstring& axis);
 }
