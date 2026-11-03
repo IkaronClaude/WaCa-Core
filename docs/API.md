@@ -202,6 +202,14 @@ not given), and has every mod send them again when it reloads. `WaCa.HudPanel(id
 WaCaCore `config/panels.ini`. Room is short (the game's quest panel takes the top of the column): more panels than fit
 are scaled down together, to 60% at most; beyond that the last in the order wait (on the VM's 16:9 screen two fit). WaCa Clan Life's day status is one (order 0); HelloWaCa has one.
 
+## A line in the pause menu's quest tab
+`WaCa.QuestLine(id, { title, activity, location, order })` puts a line in the pause menu's QUEST tab, SIDE QUESTS list,
+after the game's own side quests (an unused item of the list, filled the game's way). Display only: the game's
+navigation never lands on it and it can't be tracked; its detail (the title, the activity, the place) is shown on the
+panel beside the list while the mouse is over it, and on its own when the game has no side quest. Up to four lines
+share the room the game's quests leave. `WaCa.QuestLine(id, nil)` takes it away; like the HUD panels, WaCa Core draws
+them (`questlines.lua`) and every mod sends its lines again when Core reloads. WaCa Clan Life's pack stories use it.
+
 ## Widgets on screen
 `WaCa.WidgetRect(widget)` -> left, top, right, bottom in desktop pixels (where it was last drawn - read natively: a
 widget's geometry can't be read from Lua), `WaCa.MouseOver(widget)` -> is the mouse over it, and its area.

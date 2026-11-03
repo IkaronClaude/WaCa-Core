@@ -1240,6 +1240,22 @@ function WaCa.SpawnCat(look, at, yaw, scale)
     return cat
 end
 
+-- A LINE IN THE PAUSE MENU'S QUEST TAB (tickets.md 25): WaCa.QuestLine("MyMod.story", { title = "...", activity =
+-- "...", location = "...", order = 100 }) puts it in the SIDE QUESTS list after the game's own, display only - its
+-- detail (title, activity, place) on the panel beside the list while the mouse is over it; WaCa.QuestLine(id, nil)
+-- takes it away. WaCa Core draws them (questlines.lua); like the HUD panels, each mod sends its lines again when asked.
+local myLines, linesAsked = {}, false
+function WaCa.QuestLine(id, line)
+    myLines[id] = line or false
+    if not linesAsked then
+        linesAsked = true
+        WaCa.On("QuestLinesAgain", function()
+            for lid, l in pairs(myLines) do if l then WaCa.Emit("QuestLine", lid, l) end end
+        end)
+    end
+    WaCa.Emit("QuestLine", id, line)
+end
+
 -- A PANEL ON THE HUD (the game's current-objective look, under its quest panel - WaCa Core draws them all, stacked):
 -- WaCa.HudPanel("MyMod.status", { title = "...", where = "...", activity = "...", goal = "...", got = 1, need = 3,
 -- done = false, order = 100 }) shows or updates it (order: lower further up); WaCa.HudPanel(id, nil) takes it away.
