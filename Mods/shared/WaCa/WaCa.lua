@@ -1296,6 +1296,15 @@ function WaCa.Nameplate(actor, name, role, height)
     return ok and w or nil
 end
 
+-- a rank's text in the game's language, by the role name a look carries (Kit, Apprentice, Warrior, Deputy ... - the
+-- game's own STR_GIVER_ROLE_<ROLE> texts, read 2026-11-03) - or nil
+function WaCa.RoleText(role)
+    if not role or role == "" then return nil end
+    local key = "STR_GIVER_ROLE_" .. tostring(role):upper()
+    local t = WaCa.GetText(key)
+    return (t and t ~= "" and t ~= key) and t or nil
+end
+
 -- the rank line a game cat's nameplate shows ("Warrior" in the game's language), by the cat's name - or nil
 function WaCa.PlateRole(catName)
     local role
