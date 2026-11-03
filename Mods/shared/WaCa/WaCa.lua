@@ -406,6 +406,18 @@ end
 -- "<mod>.<name> = Key" wins over the mod's own default (its own ini's setting); without that mod, the default. Every
 -- mod key is announced ("keys.mod" { mod, name, key, label }) and announced again when asked ("keys.ask") - the
 -- controls screen names a clash ("F is also Clan Life's report key") whatever the load order.
+-- A binding may name several keys, comma-separated - "F, Gamepad_FaceButton_Top": a keyboard key and a pad button
+-- (library sweep 2026-11-03: WaCa Core raises the game screens' Gamepad_ keys as KeyDown / KeyUp too). WaCa.KeyIs(key,
+-- binding) -> is that key one of the binding's?
+function WaCa.KeyIs(key, binding)
+    if key == nil or binding == nil then return false end
+    key = tostring(key)
+    for k in tostring(binding):gmatch("[^,]+") do
+        if k:match("^%s*(.-)%s*$") == key then return true end
+    end
+    return false
+end
+
 local modKeys = {}
 local MODS_DIR = (debug.getinfo(1, "S").source:match("^@(.+)[/\\]shared[/\\]WaCa[/\\]WaCa%.lua$"))
 function WaCa.ModKey(mod, name, default, label)

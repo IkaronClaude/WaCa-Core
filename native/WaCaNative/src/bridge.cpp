@@ -51,6 +51,7 @@
 #include <chrono>
 #include <mutex>
 #include <map>
+#include <set>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -321,6 +322,27 @@ void TraceCall(UObject* context, UFunction* function) {
     logx::Line(L"[trace] %s", key.c_str());
 }
 
+// GAMEPAD BUTTONS AS KeyDown / KeyUp (library sweep 2026-11-03): WaCa's KeyDown / KeyUp come from the game window's
+// keyboard / mouse messages (keys.cpp) - a pad button never showed up, so every mod key (Report, Rest, the cutscene's
+// Skip ...) and every Gamepad_ name in the mods was dead for a pad. The game's screens get every device's key in
+// OnKeyPressed / OnKeyReleased (FKey Key); its Gamepad_ keys are raised here like keyboard keys. One press reaches
+// several screens: it counts once, from its press till its release.
+std::set<std::string> g_padDown;
+UClass* g_screenClass = nullptr;
+void PadKey(UObject* context, UFunction* function, void* params, bool pressed) {
+    if (!g_screenClass) g_screenClass = UObjectGlobals::StaticFindObject<UClass*>(nullptr, nullptr, STR("/Script/SwtEngine.SwtScreen"));
+    if (!g_screenClass || !context->IsA(g_screenClass)) return;
+    FProperty* key = function->FindProperty(FName(STR("Key"), FNAME_Find));
+    if (!key) return;
+    std::string name = Narrow(reinterpret_cast<FName*>(static_cast<uint8_t*>(params) + key->GetOffset_Internal())->ToString());
+    if (name.rfind("Gamepad", 0) != 0) return;
+    if (pressed) {
+        if (g_padDown.insert(name).second) bridge::Emit("KeyDown", {name});
+    } else if (g_padDown.erase(name) > 0) {
+        bridge::Emit("KeyUp", {name});
+    }
+}
+
 void OnProcessEvent(bool post, UObject* context, UFunction* function, void* params) {
     if (!OnGameThread()) return;
     if (!post && context && function && std::chrono::steady_clock::now() <= g_traceUntil) TraceCall(context, function);
@@ -328,6 +350,11 @@ void OnProcessEvent(bool post, UObject* context, UFunction* function, void* para
     std::lock_guard<std::recursive_timed_mutex> statesLock(g_statesMutex);
     ApplyPendingStates();
     if (g_startPending.load(std::memory_order_relaxed)) DeliverStarted();
+    if (!post && context && function && params) {
+        static const FName keyPressed(STR("OnKeyPressed"), FNAME_Add), keyReleased(STR("OnKeyReleased"), FNAME_Add);
+        const FName fn = function->GetNamePrivate();
+        if (fn == keyPressed || fn == keyReleased) PadKey(context, function, params, fn == keyPressed);
+    }
     if (g_watchCount.load(std::memory_order_relaxed) == 0 || !context || !function) return;
     const FName name = function->GetNamePrivate();
     struct Due { ModState* state; std::string event; std::vector<ParamValue> extras; bool hasExtra; };

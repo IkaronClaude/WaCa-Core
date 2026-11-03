@@ -175,6 +175,14 @@ hint icon.
 `keybinds.ini` `[ModKeys]` (`<mod>.<name> = Key`, every mod's keys in one file) when set there, else your own default.
 The key is announced (`keys.mod` `{ mod, name, key, label }`) so the controls screen can warn when a player gives a
 game command the same key ("F is also ClanLife's key to report a finished task"). Call it at load, for keys that are on.
+A binding may list several keys, comma-separated (`SpaceBar, Gamepad_FaceButton_Right`): compare a pressed key with
+`WaCa.KeyIs(key, binding)`, never `==`.
+
+**Gamepad buttons** arrive as `KeyDown` / `KeyUp` too (`Gamepad_FaceButton_Bottom` ... - Unreal's key names): WaCa
+Core raises them from the game screens' own `OnKeyPressed` / `OnKeyReleased`, once per press however many screens get
+it. (Keyboard and mouse come from the game window.) For menu-style moves, the game's screen commands
+(`OnListenCommand` - Button_Up / Down / A) cover keyboard and pad alike. `WaCa.Watch` can hand on several parameters,
+comma-separated (`"Command,InputEvent"`), and an `FKey` parameter comes as its key name.
 
 ## A part in a story (WaCa Clan Life's `Hook:` step)
 Every UE4SS mod runs in its own Lua state, so a story step can't call your functions directly. Announce the hook and
