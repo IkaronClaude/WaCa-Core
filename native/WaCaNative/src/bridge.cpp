@@ -224,8 +224,10 @@ ParamValue ReadParam(FProperty* p, void* params) {
         v.kind = 2;
         v.text = Narrow(reinterpret_cast<FName*>(at)->ToString());
     } else if (auto* sp = CastField<FStructProperty>(p)) {
-        // a gameplay tag: its one FName (TagName) first
-        if (sp->GetStruct() && sp->GetStruct()->GetName() == STR("GameplayTag")) {
+        // a gameplay tag: its one FName (TagName) first; an input key (FKey): its KeyName first too ("Enter",
+        // "Gamepad_FaceButton_Bottom" - library sweep 2026-11-03: a screen's OnKeyPressed is the only place a gamepad
+        // button shows up as a key, WaCa's KeyDown being keyboard / mouse only)
+        if (sp->GetStruct() && (sp->GetStruct()->GetName() == STR("GameplayTag") || sp->GetStruct()->GetName() == STR("Key"))) {
             v.kind = 2;
             v.text = Narrow(reinterpret_cast<FName*>(at)->ToString());
         }
