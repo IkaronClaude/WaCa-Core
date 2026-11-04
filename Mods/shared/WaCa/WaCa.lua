@@ -1248,14 +1248,12 @@ end
 -- (or nil); WaCa.Despawn(cat) removes it. Its path is the way to keep it (a held wrapper can go stale). VM 2026-10-31:
 -- Sunstar of ThunderClan standing by the RiverClan camp's stream.
 local CAT_CLASS = "/Game/Gameplay/Blueprints/Characters/BP_WrcSK_Customization_Cat.BP_WrcSK_Customization_Cat_C"
-function WaCa.SpawnCat(look, at, yaw, scale)
-    local cls = StaticFindObject(CAT_CLASS)
-    if not (cls and cls:IsValid()) then
-        WaCa.LoadAsset(CAT_CLASS:gsub("%.[^.]+$", ""))
-        cls = StaticFindObject(CAT_CLASS)
-    end
-    if not (cls and cls:IsValid()) or not at then return nil end
-    -- (ON THE GROUND: this cat's feet are its origin - a cat spawned at your cat's place (its capsule's middle) floated
+-- ANY ACTOR OF THE GAME'S, SPAWNED - WaCa.Spawn(classPath, at, yaw, scale): the class by its object path
+-- (/Game/.../BP_Thing.BP_Thing_C - loaded when it isn't yet), set down on the ground below `at` and spawned even where
+-- it overlaps something (World:SpawnActor refuses a spot that collides: a moss container in a den came back nil, VM
+-- 2026-11-04). The actor, or nil. WaCa.SpawnCat is this plus a look.
+local function onGround(at)
+    -- (ON THE GROUND: a cat's feet are its origin - a cat spawned at your cat's place (its capsule's middle) floated
     -- 36 cm, on a slope 1.45 m: library exercise 2026-11-02. Set down on the ground below `at` - within 2 m above, 10 m
     -- below; a point with no ground there (a spawn tucked away under the map) keeps its height.)
     pcall(function()
@@ -1269,20 +1267,120 @@ function WaCa.SpawnCat(look, at, yaw, scale)
             at = { X = at.X, Y = at.Y, Z = hit.ImpactPoint.Z }
         end
     end)
+    return at
+end
+local function spawnClass(cls, at, yaw, scale)
     local gs = StaticFindObject("/Script/Engine.Default__GameplayStatics")
     local half = math.rad((yaw or 0) / 2)
     local tf = { Translation = { X = at.X, Y = at.Y, Z = at.Z }, Rotation = { X = 0, Y = 0, Z = math.sin(half), W = math.cos(half) },
                  Scale3D = { X = scale or 1, Y = scale or 1, Z = scale or 1 } }
     local ctx
     pcall(function() ctx = FindFirstOf("PlayerController") end)
-    local ok, cat = pcall(function()
+    local ok, a = pcall(function()
         local a = gs:BeginDeferredActorSpawnFromClass(ctx, cls, tf, 1, nil, 2)   -- (always spawn; the root's own scale)
         if a and a:IsValid() then gs:FinishSpawningActor(a, tf, 2) end
         return a
     end)
-    if not (ok and cat and cat:IsValid()) then return nil end
+    if ok and a and a:IsValid() then return a end
+    return nil
+end
+function WaCa.Spawn(classPath, at, yaw, scale)
+    if not (classPath and at) then return nil end
+    local cls = StaticFindObject(classPath)
+    if not (cls and cls:IsValid()) then
+        WaCa.LoadAsset(tostring(classPath):gsub("%.[^.]+$", ""))
+        cls = StaticFindObject(classPath)
+    end
+    if not (cls and cls:IsValid()) then return nil end
+    return spawnClass(cls, onGround(at), yaw, scale)
+end
+
+function WaCa.SpawnCat(look, at, yaw, scale)
+    local cls = StaticFindObject(CAT_CLASS)
+    if not (cls and cls:IsValid()) then
+        WaCa.LoadAsset(CAT_CLASS:gsub("%.[^.]+$", ""))
+        cls = StaticFindObject(CAT_CLASS)
+    end
+    if not (cls and cls:IsValid()) or not at then return nil end
+    local cat = spawnClass(cls, onGround(at), yaw, scale)
+    if not cat then return nil end
     if look then WaCa.ImportLook(cat, look) end
     return cat
+end
+
+-- AN INTERACT SPOT - WaCa.InteractSpot(at, onInteract[, { reach = cm }]): the game's own "Interact" prompt at a place,
+-- and onInteract(spot) when your cat uses it there (operator 2026-11-04: "show, not tell" - a duty that finished on
+-- arrival with a text card; a kit that couldn't be talked to). The game's generic interactable
+-- (BP_Interactable_CInematic, its editor placeholder mesh hidden) - it prompts wherever it stands; using it raises no
+-- OnInteracted, so the interact is heard as the screens' Player_Interact command (65) with your cat within reach
+-- (default 250 cm) of the spot - the nearest one, when several are. Returns the spot: spot:Remove(), spot:MoveTo(at),
+-- spot.path; nil when it couldn't be spawned.
+local SPOT_CLASS = "/Game/Gameplay/Blueprints/WorldElements/Interactables/BP_Interactable_CInematic.BP_Interactable_CInematic_C"
+local PLAYER_INTERACT = 65
+local interactSpots, interactHeard = {}, false
+local function myPawn()
+    for _, c in ipairs(FindAllOf("SwtPlayerController") or {}) do
+        if c:IsValid() and c.Player and c.Pawn and c.Pawn:IsValid() then return c.Pawn end
+    end
+end
+function WaCa.InteractSpot(at, onInteract, opts)
+    -- (a spot a mod's earlier run left at this very place - a reload takes its Lua with it, not the actor: two prompts
+    -- where there should be one. Gone first; the game's own placed interactables of this class stand elsewhere)
+    pcall(function()
+        for _, old in ipairs(FindAllOf("BP_Interactable_CInematic_C") or {}) do
+            if old:IsValid() and not interactSpots[(old:GetFullName():gsub("^%S+ ", ""))] then
+                local q = old:K2_GetActorLocation()
+                if (q.X - at.X) ^ 2 + (q.Y - at.Y) ^ 2 < 40 * 40 and not old.StaticMeshComponent:IsVisible() then
+                    old:K2_DestroyActor()
+                end
+            end
+        end
+    end)
+    local a = WaCa.Spawn(SPOT_CLASS, at, 0)
+    if not a then return nil end
+    pcall(function() a.StaticMeshComponent:SetVisibility(false, false) end)
+    local spot = { path = (a:GetFullName():gsub("^%S+ ", "")), fn = onInteract, reach = (opts and opts.reach) or 250 }
+    function spot:Remove()
+        interactSpots[self.path] = nil
+        local s = StaticFindObject(self.path)
+        if s and s:IsValid() then pcall(function() s:K2_DestroyActor() end) end
+    end
+    function spot:MoveTo(to)
+        local s = StaticFindObject(self.path)
+        if s and s:IsValid() then pcall(function() s:K2_SetActorLocation(onGround(to), false, {}, true) end) end
+    end
+    interactSpots[spot.path] = spot
+    if not interactHeard then
+        interactHeard = true
+        WaCa.Watch("OnListenCommand", "/Script/SwtEngine.SwtScreen", "WaCaInteractSpot", "pre", "Command")
+        WaCa.On("WaCaInteractSpot", function(_, command)
+            if tonumber(command) ~= PLAYER_INTERACT or not next(interactSpots) then return end
+            local pawn = myPawn()
+            if not pawn then return end
+            local p = pawn:K2_GetActorLocation()
+            local best, bd
+            for path, s in pairs(interactSpots) do
+                local o = StaticFindObject(path)
+                if not (o and o:IsValid()) then interactSpots[path] = nil
+                else
+                    local q = o:K2_GetActorLocation()
+                    local d = math.sqrt((q.X - p.X) ^ 2 + (q.Y - p.Y) ^ 2)
+                    if d <= s.reach and (not bd or d < bd) then best, bd = s, d end
+                end
+            end
+            -- (one press, once: the game raises the command on every screen listening - one E talked to a kit four
+            -- times, VM 2026-11-04)
+            if best and best.last and os.clock() - best.last < 0.6 then return end
+            if best then best.last = os.clock() end
+            if best then
+                ExecuteInGameThread(function()
+                    local ok, err = pcall(best.fn, best)
+                    if not ok then print(string.format("[WaCa] interact spot: %s\n", tostring(err))) end
+                end)
+            end
+        end)
+    end
+    return spot
 end
 
 -- A LINE IN THE PAUSE MENU'S QUEST TAB (tickets.md 25): WaCa.QuestLine("MyMod.story", { title = "...", activity =
@@ -1380,6 +1478,54 @@ function WaCa.PlateRole(catName)
         end)
     end
     return role ~= "" and role or nil
+end
+
+-- A LINE OVER A CAT'S HEAD - WaCa.Say(catName, text[, seconds]): the cat's own nameplate (the game's
+-- WBP_GuiQuestActorName above it, or one WaCa.Nameplate made) shows the line on its third row (mcGuiTextExtraInfo)
+-- for `seconds` (default by length), then that row's own text again. Operator 2026-11-04: the cats' flavour lines are
+-- liked, but the big message card in the middle of the screen is the wrong place - "chat boxes over the cat".
+-- true when shown; false when that cat has no plate up (out of range, hidden) - the caller decides what then.
+local sayGen = {}
+function WaCa.Say(catName, text, seconds)
+    if not (catName and text) then return false end
+    local plate
+    for _, t in ipairs(FindAllOf("TextBlock") or {}) do
+        if plate then break end
+        pcall(function()
+            if t:GetFName():ToString() == "mcGuiTextName" and t:GetText():ToString() == catName then
+                local p = t:GetOuter():GetOuter()
+                if p:GetClass():GetFName():ToString() == "WBP_GuiQuestActorName_C" and p:IsVisible() then plate = p end
+            end
+        end)
+    end
+    if not plate then return false end
+    local path = (plate:GetFullName():gsub("^%S+ ", ""))
+    local ok = pcall(function()
+        local row = plate.mcGuiTextExtraInfo
+        if sayGen[path] == nil then sayGen[path] = { n = 0, was = row:GetText():ToString() } end
+        row:SetText(FText(tostring(text)))
+        row:SetVisibility(4)                          -- (SelfHitTestInvisible: shown)
+    end)
+    if not ok then return false end
+    local g = sayGen[path]
+    g.n = g.n + 1
+    local mine = g.n
+    local ms = math.floor((tonumber(seconds) or math.max(3, #tostring(text) / 14)) * 1000)
+    ExecuteInGameThreadWithDelay(ms, function()
+        local s = sayGen[path]
+        if not s or s.n ~= mine then return end           -- (a newer line is up)
+        sayGen[path] = nil
+        local p = StaticFindObject(path)
+        if p and p:IsValid() then pcall(function() p.mcGuiTextExtraInfo:SetText(FText(s.was or "")) end) end
+    end)
+    return true
+end
+
+-- the line over the cat, else (no plate up) as "<cat>: <line>" on the screen's line (WaCa Cutscenes' ShowLine)
+function WaCa.SayOrShow(catName, text, seconds)
+    if WaCa.Say(catName, text, seconds) then return true end
+    WaCa.Emit("ShowLine", tostring(catName) .. ": " .. tostring(text))
+    return false
 end
 
 function WaCa.Despawn(cat)
