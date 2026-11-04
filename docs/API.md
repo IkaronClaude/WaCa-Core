@@ -4,14 +4,19 @@ A WaCa mod is a normal [UE4SS](https://docs.ue4ss.com) Lua mod: a folder in `ue4
 (and an `enabled.txt` so UE4SS turns it on). It needs WaCa Core installed - list it as a requirement.
 
 ```lua
-local WaCa = require("WaCa")
-if not WaCaNative_Command then print("[MyMod] WaCa Core is missing\n") return end
+local hasCore, WaCa = pcall(require, "WaCa")       -- (pcall: without WaCa Core the library itself is missing)
+if not (hasCore and WaCaNative_Command) then print("[MyMod] WaCa Core is missing\n") return end
+if not WaCa.Needs("1.0.0", "MyMod") then return end -- the oldest WaCa Core your mod works with
 
 WaCa.On("ScreenShown", function(screen) ... end)
 WaCa.Ready()          -- the LAST line: events are held back until then; then Started fires and the screens already
                       -- up arrive as ScreenShown
 ```
 See [examples/HelloWaCa](../examples/HelloWaCa) for a complete one.
+
+`WaCa.VERSION` is the installed Core's version; `WaCa.AtLeast("1.2")` says whether it is that or newer (for a feature
+you use only when it is there); `WaCa.Needs(version, mod)` logs "needs WaCa Core ... or newer" and returns false when
+it is older.
 
 ## Events instead of polling
 Handlers run on the game thread. Never run Lua off the game thread in a mod that uses events (`LoopAsync`,

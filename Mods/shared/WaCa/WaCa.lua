@@ -7,6 +7,30 @@
 -- Needs WaCa Core's native part (WaCaCore/dlls/main.dll), which applies the changes on the game thread.
 local WaCa = {}
 
+-- the library's version (WaCa Core's - WaCaCore/Scripts/main.lua says the same). A mod built against a newer Core
+-- asks for it first:  if not WaCa.Needs("1.1.0", "WaCaMyMod") then return end  - an older Core then says so in the
+-- log instead of a missing function failing somewhere later
+WaCa.VERSION = "1.0.0"
+local function versionParts(v)
+    local out = {}
+    for n in tostring(v or ""):gmatch("%d+") do out[#out + 1] = tonumber(n) end
+    return out
+end
+function WaCa.AtLeast(version)
+    local have, want = versionParts(WaCa.VERSION), versionParts(version)
+    for i = 1, math.max(#have, #want) do
+        local h, w = have[i] or 0, want[i] or 0
+        if h ~= w then return h > w end
+    end
+    return true
+end
+function WaCa.Needs(version, mod)
+    if WaCa.AtLeast(version) then return true end
+    print(string.format("[%s] needs WaCa Core %s or newer - this is WaCa Core %s: update WaCa Core (nothing applied)\n",
+        tostring(mod or "WaCa"), tostring(version), WaCa.VERSION))
+    return false
+end
+
 -- TIMERS WAIT WHILE MODS LOAD: UE4SS runs a mod's game-thread callbacks (ExecuteInGameThread / ...WithDelay) while its
 -- loader thread is still starting the next mods - both in UE4SS's shared machinery at once, the race the bridge's
 -- events already wait out (VM 2026-11-01: two start-up crashes 16 s in, a Lua callback reading 0x10). In every mod's

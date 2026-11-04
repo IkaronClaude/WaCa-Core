@@ -34,6 +34,12 @@ foreach ($mod in Get-ChildItem $mods -Directory) {
         Set-Content (Join-Path $dest "enabled.txt") "" -Encoding ascii
         Copy-Item (Join-Path $root "LICENSE") (Join-Path $dest "LICENSE.txt")
         if (Test-Path (Join-Path $root "README.md")) { Copy-Item (Join-Path $root "README.md") (Join-Path $dest "README.md") }
+        # the README's links (docs\..., examples\...) work in the zip too: those folders beside it (an example mod in
+        # there is only a copy to look at - UE4SS loads mods from Mods\ itself)
+        if (Test-Path (Join-Path $root "CONTRIBUTING.md")) { Copy-Item (Join-Path $root "CONTRIBUTING.md") $dest }
+        foreach ($extra in "docs", "examples") {
+            if (Test-Path (Join-Path $root $extra)) { Copy-Item (Join-Path $root $extra) $dest -Recurse }
+        }
     }
 }
 

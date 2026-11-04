@@ -2,9 +2,10 @@
 -- rename it. It shows: reacting to the game's events, an event from another WaCa mod, a value kept per save slot,
 -- a key of its own, a part in a story (Clan Life's Hook: step) and a game text replaced - plus content/text.ini, the
 -- same without code.
-local WaCa = require("WaCa")
+local hasCore, WaCa = pcall(require, "WaCa")     -- (pcall: without WaCa Core its library is missing too)
 local function log(fmt, ...) print(string.format("[HelloWaCa] " .. fmt .. "\n", ...)) end
-if not WaCaNative_Command then log("WaCa Core is missing - install it first") return end
+if not (hasCore and WaCaNative_Command) then log("WaCa Core is missing - install it first") return end
+if not WaCa.Needs("1.0.0", "HelloWaCa") then return end  -- the oldest WaCa Core this mod works with
 
 -- the game: every screen that opens
 WaCa.On("ScreenShown", function(screen)

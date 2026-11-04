@@ -10,6 +10,10 @@ local modDir = debug.getinfo(1, "S").source:match("^@(.+)[/\\]Scripts[/\\]main%.
 local modsDir = modDir:match("^(.+)[/\\][^/\\]+$") or modDir
 local function log(fmt, ...) print(string.format("[WaCaCore] " .. fmt .. "\n", ...)) end
 log("%s loaded", VERSION)
+if WaCa.VERSION ~= VERSION then
+    log("WARNING: Mods/shared/WaCa is version %s, this WaCaCore %s - a mixed install: extract WaCa Core's zip again",
+        tostring(WaCa.VERSION), VERSION)
+end
 
 -- the mods running with this Core (other mods can read it: WaCa.Subscribe("core.started", fn) - sticky)
 local mods = {}
