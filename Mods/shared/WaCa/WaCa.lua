@@ -579,8 +579,16 @@ end
 -- there is no object, UE4SS hands back a wrapper of NULL - not nil - from GetOwner / GetParent / FindFirstOf /
 -- StaticFindObject / an object field; ANY call on it (GetClass, GetFullName, a field) crashes the game natively, and
 -- pcall can't catch that. IsValid itself is safe. Use: local o = WaCa.Live(comp:GetOwner()); if o then ... end
+-- (UE4SS's IsValid knows the engine's flags as they were before UE 5.4: on this game (5.7) its "unreachable" bit is never
+-- set and a DESTROYED object - an actor after K2_DestroyActor, a closed screen - passes it until the garbage collector
+-- frees it. The engine marks those Garbage = internal flag bit 21 (EInternalObjectFlags::Garbage, UE 5.4+); VM
+-- 2026-11-04: a spawned actor [15] -> destroyed [15,21] -> gone at the next GC, while IsValid said true all along.)
+local GARBAGE = 1 << 21
 function WaCa.Live(o)
-    if o ~= nil and type(o) == "userdata" and o:IsValid() then return o end
+    if o ~= nil and type(o) == "userdata" and o:IsValid() then
+        local ok, garbage = pcall(function() return o:HasAnyInternalFlags(GARBAGE) end)
+        if not (ok and garbage) then return o end
+    end
     return nil
 end
 
