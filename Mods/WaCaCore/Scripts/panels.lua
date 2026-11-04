@@ -37,6 +37,17 @@ local function fill(w, s)
         setText(g.mcGuiGoalName, s.goal)
         setText(g.mcGuiGoalValues, s.need and string.format("%d/%d", tonumber(s.got) or 0, tonumber(s.need)) or "")
         pcall(function() g.CanvasCheck:SetVisibility(s.done and HIT_TEST_INVISIBLE or HIDDEN) end)
+        -- (the goal's icon: status.icon = a game texture's object path - the template's own is a placeholder, an angry
+        -- cat face (T_UI_Icon_Status_Furious) the operator saw on every duty, 2026-11-04; no icon given = none shown)
+        pcall(function()
+            local tex = s.icon and WaCa.LoadAsset(s.icon)
+            if tex and tex:IsValid() then
+                g.mcGuiIcon:SetBrushFromTexture(tex, false)
+                g.mcGuiIcon:SetVisibility(HIT_TEST_INVISIBLE)
+            else
+                g.mcGuiIcon:SetVisibility(HIDDEN)
+            end
+        end)
     end
     show(w.mcGuiGoal2, false)
     show(w.mcGuiGoal3, false)

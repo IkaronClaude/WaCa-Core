@@ -209,11 +209,12 @@ button or wheel reaches the game until `|0` - for a mod's own menu on top of the
 `MouseLook|on|yaw|pitch`, `CameraRelativeMove|0/1`, and the others in `native/WaCaNative/src/commands.cpp`.
 
 ## A panel on the HUD
-`WaCa.HudPanel(id, { title, where, activity, goal, got, need, done, order })` shows a panel in the game's own quest
+`WaCa.HudPanel(id, { title, where, activity, goal, got, need, done, order, icon })` shows a panel in the game's own quest
 look, under the game's quest panel; WaCa Core draws every mod's panels, stacked (`order`: lower further up, 100 when
 not given), and has every mod send them again when it reloads. `WaCa.HudPanel(id, nil)` takes it away. Spacing:
 WaCaCore `config/panels.ini`. Room is short (the game's quest panel takes the top of the column): more panels than fit
 are scaled down together, to 60% at most; beyond that the last in the order wait (on the VM's 16:9 screen two fit). WaCa Clan Life's day status is one (order 0); HelloWaCa has one.
+`icon`: the goal line's icon, a game texture's object path (`/Game/.../T_UI_Icon_X.T_UI_Icon_X`) - none when not given.
 
 ## A line in the pause menu's quest tab
 `WaCa.QuestLine(id, { title, activity, location, order })` puts a line in the pause menu's QUEST tab, SIDE QUESTS list,
