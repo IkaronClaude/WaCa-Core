@@ -139,6 +139,15 @@ local function draw()
     end
 end
 
+-- (for the pause menu's Clan tab - questtab.lua: the same statuses, in the same look)
+function Panels.Statuses()
+    local out = {}
+    for _, id in ipairs(order) do if status[id] then out[#out + 1] = status[id] end end
+    table.sort(out, function(a, b) return (tonumber(a.order) or 100) < (tonumber(b.order) or 100) end)
+    return out
+end
+Panels.Fill = function(w, s) return fill(w, s) end
+
 function Panels.Init(c)
     WaCa, log = c.WaCa, c.log
     local p = (WaCa.ReadIni(c.modDir .. "/config/panels.ini") or {})["Panels"] or {}
