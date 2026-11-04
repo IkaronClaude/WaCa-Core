@@ -33,6 +33,8 @@ src_dir = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, '..', 'native
 CALLS = [
     re.compile(r'FunctionUsing\(\s*"((?:[^"\\]|\\.)*)"\s*,\s*"([0-9A-Fa-f? ]+)"\s*\)'),
     re.compile(r'Hook\(\s*L"([^"]*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,\s*"([0-9A-Fa-f? ]+)"'),
+    # scan::FunctionUsingWhere("anchor", "body pattern", n): by what the body does, no prologue (2026-11-04)
+    re.compile(r'FunctionUsingWhere\(\s*"((?:[^"\\]|\\.)*)"\s*,\s*"([0-9A-Fa-f? ]+)"\s*,\s*(\d+)\s*\)'),
 ]
 targets = []   # (where, label, anchor, prologue, kind: 'hook' | 'root')
 for path in sorted(glob.glob(os.path.join(src_dir, '*.cpp'))):
@@ -44,6 +46,10 @@ for path in sorted(glob.glob(os.path.join(src_dir, '*.cpp'))):
     for m in CALLS[0].finditer(text):
         line = text.count('\n', 0, m.start()) + 1
         targets.append((f'{os.path.basename(path)}:{line}', m.group(1), m.group(1), m.group(2), 'root'))
+    # (the prologue slot holds "body:<pattern>:<n>" for these)
+    for m in CALLS[2].finditer(text):
+        line = text.count('\n', 0, m.start()) + 1
+        targets.append((f'{os.path.basename(path)}:{line}', m.group(1), m.group(1), f'body:{m.group(2)}:{m.group(3)}', 'root'))
 if not targets:
     sys.exit(f'no hook targets found in {src_dir}')
 
@@ -155,6 +161,18 @@ def reaches(src, dst, depth):
     return any(reaches(c, dst, depth - 1) for c in callees)
 
 
+def body_count(fn, pattern):
+    r = primary_range(fn)
+    if not r:
+        return 0
+    toks = pattern.split()
+    n = 0
+    for p in range(r[0], r[1] - len(toks) + 1):
+        if all(t.startswith('?') or image[p + k] == int(t, 16) for k, t in enumerate(toks)):
+            n += 1
+    return n
+
+
 failed = 0
 resolved = {}   # (file, kind) -> [(label, fn)]
 for where, label, anchor, prologue, kind in targets:
@@ -163,7 +181,11 @@ for where, label, anchor, prologue, kind in targets:
     for s in strings:
         fns = referencing_functions(s)
         refs += len(fns)
-        candidates += [f for f in fns if prologue_matches(f, prologue) and f not in candidates]
+        if prologue.startswith('body:'):
+            _, pat, n = prologue.split(':')
+            candidates += [f for f in fns if body_count(f, pat) >= int(n) and f not in candidates]
+        else:
+            candidates += [f for f in fns if prologue_matches(f, prologue) and f not in candidates]
     if len(candidates) == 1:
         verdict = f'OK        0x{IB + candidates[0]:X}'
         resolved.setdefault((where.split(':')[0], kind), []).append((label, candidates[0]))
@@ -191,19 +213,7 @@ for (file, kind), hooks in sorted(resolved.items()):
 
 # Body anchors on a string-found function held in a variable (camera.cpp): `auto* v = scan::FunctionUsing("a", ...)`
 # then scan::BodyContains(v, "pattern", n) / scan::CalleeWhere(v, "pattern") - same checks as scan.h
-def body_count(fn, pattern):
-    r = primary_range(fn)
-    if not r:
-        return 0
-    toks = pattern.split()
-    n = 0
-    for p in range(r[0], r[1] - len(toks) + 1):
-        if all(t.startswith('?') or image[p + k] == int(t, 16) for k, t in enumerate(toks)):
-            n += 1
-    return n
-
-
-VAR = re.compile(r'auto\*\s+(\w+)\s*=\s*scan::FunctionUsing\(\s*"((?:[^"\\]|\\.)*)"')
+VAR = re.compile(r'auto\*\s+(\w+)\s*=\s*scan::FunctionUsing(?:Where)?\(\s*"((?:[^"\\]|\\.)*)"')
 BODY = re.compile(r'scan::BodyContains\(\s*(\w+)\s*,\s*"([0-9A-Fa-f? ]+)"\s*,\s*(\d+)\s*\)')
 CALLEE = re.compile(r'scan::CalleeWhere\(\s*(\w+)\s*,\s*"([0-9A-Fa-f? ]+)"\s*\)')
 for path in sorted(glob.glob(os.path.join(src_dir, '*.cpp'))):

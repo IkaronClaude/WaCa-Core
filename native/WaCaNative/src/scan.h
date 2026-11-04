@@ -212,4 +212,22 @@ inline uint8_t* FunctionUsing(const char* text, const char* prologue) {
     return found;
 }
 
+// the one function that uses the ASCII string `text` and whose body holds `body` at least `count` times, or null -
+// FunctionUsing without a prologue. A prologue is the compiler's choice of saved registers and frame: the game's patch
+// 1.1 rebuilt the camera update (it gained the game's own mouse look) and its prologue went from 40 55 53 41 55 41 56
+// to ...41 57 - "not found", though the function, its string and what it does were all still there (2026-11-04). What
+// the function DOES (a call slot, an immediate it stores - with ?? for the frame offsets) outlives a rebuild; anchor
+// on that.
+inline uint8_t* FunctionUsingWhere(const char* text, const char* body, int count) {
+    uint8_t* found = nullptr;
+    for (uint8_t* str : FindAscii(text)) {
+        for (uint8_t* fn : FunctionsReferencing(str)) {
+            if (fn == found || !BodyContains(fn, body, count)) continue;
+            if (found) return nullptr;                       // ambiguous: refuse rather than hook the wrong one
+            found = fn;
+        }
+    }
+    return found;
+}
+
 }  // namespace scan

@@ -12,10 +12,12 @@
 // direct write turned nothing) - hence going through the turn value. The player's invert settings live on the input
 // source (+0x8B3 set = yaw inverted); the idle check after the update recentres the camera unless component+0x220
 // (the idle time) stays 0.
-// Anchors (relocation framework): the update by the string "LookAtYaw" + prologue, confirmed by its body asking for
-// the camera axes (mov byte ptr [rbp+67h], 3Eh twice); the turn function = the one function the update calls that asks
-// for the camera-right axis (mov byte ptr [rsp+70h], 3Fh). Anything missing = mouse look off (logged); the stick
-// still works.
+// Anchors (relocation framework), by what the code does - frame offsets wildcarded, no prologue (patch 1.1 rebuilt the
+// update with new ones): the update = the one user of the string "LookAtYaw" that calls the pitch axis slot
+// (call [rax+1008h]), confirmed by its body asking for the camera axes (mov byte ptr [rbp+??], 3Eh twice); the turn
+// function = the one function the update calls that asks for the camera-right axis (mov byte ptr [rsp+??], 3Fh) -
+// inlined in patch 1.1, which turns the camera by the mouse itself. Anything missing = mouse look off (logged, with
+// why); the stick still works.
 #include "camera.h"
 
 #include <windows.h>
@@ -286,22 +288,27 @@ float __fastcall TurnDetour(void* component, float deadZone) {
 namespace camera {
 
 void Install() {
-    auto* update = scan::FunctionUsing("LookAtYaw", "40 55 53 41 55 41 56");
+    // (by what the code DOES, not its compiler-chosen bytes - patch 1.1 rebuilt the update: a new prologue, the axis id
+    // stored at other frame offsets, 2026-11-04. The update = the one "LookAtYaw" user that calls the pitch axis slot,
+    // call qword ptr [rax + 1008h]; confirmed by storing the camera-axes id 3Eh into its frame twice or more)
+    auto* update = scan::FunctionUsingWhere("LookAtYaw", "FF 90 08 10 00 00", 1);
     if (!update) {
-        logx::Line(L"[camera] update: not found (anchor \"LookAtYaw\") - mouse look OFF");
+        logx::Line(L"[camera] update: no single \"LookAtYaw\" user calls the pitch axis slot - mouse look OFF");
         return;
     }
-    if (!scan::BodyContains(update, "C6 45 67 3E", 2)) {
+    if (!scan::BodyContains(update, "C6 45 ?? 3E", 2)) {
         logx::Line(L"[camera] update at %p: its body doesn't ask for the camera axes - anchors disagree, mouse look OFF", update);
         return;
     }
-    if (!scan::BodyContains(update, "FF 90 08 10 00 00", 1)) {        // call qword ptr [rax + 1008h]: the pitch axis
-        logx::Line(L"[camera] update at %p doesn't call the pitch axis slot - mouse pitch OFF (yaw unaffected)", update);
-        g_pitchTried = true;
-    }
-    auto* turn = scan::CalleeWhere(update, "C6 44 24 70 3F");
+    auto* turn = scan::CalleeWhere(update, "C6 44 24 ?? 3F");
     if (!turn) {
-        logx::Line(L"[camera] turn function: no single callee of the update asks for the camera-right axis - mouse look OFF");
+        // (patch 1.1: the turn is inlined - the update reads the axes itself, call qword ptr [rax + 1000h] - and the
+        // game has its own mouse look there. No function of its own = no place to add the mouse's yaw)
+        if (scan::BodyContains(update, "FF 90 00 10 00 00", 1))
+            logx::Line(L"[camera] update at %p reads the camera axes itself (its turn is inlined in this build - the "
+                       L"game's own mouse look, patch 1.1) - WaCa's mouse look OFF, the game's turns the camera", update);
+        else
+            logx::Line(L"[camera] turn function: no single callee of the update asks for the camera-right axis - mouse look OFF");
         return;
     }
     if (!scan::BodyContains(turn, "FF 90 00 10 00 00", 2)) {           // call qword ptr [rax + 1000h]: its axes
