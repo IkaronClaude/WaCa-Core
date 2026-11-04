@@ -44,7 +44,7 @@ Every WaCa mod is an ordinary UE4SS Lua mod; WaCa Core gives yours:
 - **Content files several mods can add to** - two story mods can both add scenes to the same day without editing each
   other's files.
 - Game text, data tables, cat appearance, assets from your own pak, menu keys.
-- Documentation and a complete example mod: TODO: GitHub link/docs
+- Documentation and a complete example mod: https://github.com/IkaronClaude/WaCa-Core/blob/main/docs/API.md and examples/HelloWaCa (also in the mod's docs and examples folders)
 
 ## Requirements
 - **UE4SS for Warrior Cats** - https://www.nexusmods.com/warriorcatsclansoftheforest/mods/2 (UE4SS 3.0.1-1181-g83330635).
@@ -77,7 +77,7 @@ Vortex: untested - install manually.
   from-source build of it).
 
 ## Source code & contributing
-Open source (Apache 2.0): TODO: https://github.com/IkaronClaude/WaCa-Core
+Open source (Apache 2.0): https://github.com/IkaronClaude/WaCa-Core
 
 **Contributions are very welcome** - bug reports, ideas, pull requests, and writing: stories, clan events and dialogue
 are plain text files, no programming needed. If you'd like to help, open an issue or a pull request on GitHub, or post
