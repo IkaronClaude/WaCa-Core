@@ -215,6 +215,8 @@ not given), and has every mod send them again when it reloads. `WaCa.HudPanel(id
 WaCaCore `config/panels.ini`. Room is short (the game's quest panel takes the top of the column): more panels than fit
 are scaled down together, to 60% at most; beyond that the last in the order wait (on the VM's 16:9 screen two fit). WaCa Clan Life's day status is one (order 0); HelloWaCa has one.
 `icon`: the goal line's icon, a game texture's object path (`/Game/.../T_UI_Icon_X.T_UI_Icon_X`) - none when not given.
+The same panels show in the pause menu's Quest page, on a tab of their own after Side Quests (`config/panels.ini`
+[QuestTab]: On, Title - "Clan" -, DetailDown): TriggerR past Side Quests or a click opens it, the first panel by order on it.
 
 ## A line in the pause menu's quest tab
 `WaCa.QuestLine(id, { title, activity, location, order })` puts a line in the pause menu's QUEST tab, SIDE QUESTS list,
