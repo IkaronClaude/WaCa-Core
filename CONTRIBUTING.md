@@ -19,6 +19,8 @@ Open an issue with:
 - **No game files or game data** in the repository - no text exported from the game, no meshes, textures, sounds or
   paks of the game. Reuse the game's assets by their path at runtime.
 - Say how you tested it (in game: what you did and saw; the log lines that show it).
+- Run WaCa Core's `tools/check_lua.py Mods` (`pip install lupa luaparser`): every file compiles, and no local is
+  called above its own definition (in Lua that is a nil global - an error only when that line runs).
 - Update the README in the same pull request when players or modders see a change.
 - New to Lua, UE4SS or this game? Open a draft pull request or an issue early and ask - happy to help.
 

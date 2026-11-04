@@ -599,8 +599,8 @@ function WaCa.ReadIni(path)
     if not f then return nil end
     local out, section, sections = {}, "", {}
     out[section] = { __order = {} }
-    for line in f:lines() do
-        line = line:gsub("^%s+", ""):gsub("%s+$", "")
+    for raw in f:lines() do
+        local line = raw:gsub("^%s+", ""):gsub("%s+$", "")
         if line ~= "" and not line:match("^[;#]") then
             local s = line:match("^%[(.+)%]$")
             if s then

@@ -31,6 +31,7 @@ needs it, or because you want to make mods.
   for writers. TODO: Nexus link
 - **WaCa Hunting** (experimental) - hunting by skill and chance, scent trails, fishing, wading. TODO: Nexus link
 - **WaCa Graphics** - more graphics settings than the options screen. TODO: Nexus link
+- **WaCa Cutscenes** (experimental) - cutscenes from plain text: cats on marks, beats, camera shots. TODO: Nexus link
 
 ### For modders
 Every WaCa mod is an ordinary UE4SS Lua mod; WaCa Core gives yours:

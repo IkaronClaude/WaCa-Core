@@ -12,6 +12,7 @@ is what the other WaCa mods need:
 | [WaCa Clan Life](https://github.com/IkaronClaude/WaCa-ClanLife) | day / night, seasons, weather, the clan's daily life and a story system for writers |
 | [WaCa Hunting](https://github.com/IkaronClaude/WaCa-Hunting) | hunting by skill and chance, scent trails, fishing, wading |
 | [WaCa Graphics](https://github.com/IkaronClaude/WaCa-Graphics) | more graphics settings than the options screen |
+| [WaCa Cutscenes](https://github.com/IkaronClaude/WaCa-Cutscenes) | cutscenes from plain text: cats on marks, beats, camera shots |
 
 Each is its own UE4SS mod: install the ones you want, plus this one.
 
@@ -60,6 +61,8 @@ Your mod is a normal UE4SS Lua mod that starts with `local WaCa = require("WaCa"
   UE4SS's Unreal submodule is private: it needs a GitHub account linked to Epic Games (the release workflow uses the
   secret `UE4SS_SOURCE_TOKEN`). The first build takes about 10 minutes.
 - `tools\package.ps1` builds `dist\WaCa-Core-<version>.zip` (the layout to extract into the game's folder).
+- `tools\check_lua.py Mods examples` - the release check of any WaCa repo's Lua: it compiles, no accidental globals
+  (a local function called above its definition is a nil global in Lua). `pip install lupa luaparser`.
 
 No game files or game data are in this repository (BYO: the game's paks, text and binaries stay on your machine).
 

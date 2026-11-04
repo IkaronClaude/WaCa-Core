@@ -17,6 +17,8 @@ dist/
 native/build/
 native/out/
 native/build.log
+native/ue4ss_build.log
+__pycache__/
 tools/bin/
 content/source/
 content/Wrc/Build/
