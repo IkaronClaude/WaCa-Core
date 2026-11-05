@@ -36,7 +36,37 @@ Events between mods: [EVENTS.md](EVENTS.md).
 
 `{X, Y, Z}` set down on the ground below `at` (a trace from 2 m above to 10 m below; no ground there = `at` unchanged) -
 what `WaCa.Spawn` / `WaCa.SpawnCat` do to their spot. For moving an actor somewhere it must stand: a cat's origin is its
-feet. Added after the 1.0.0 release: guard with `WaCa.OnGround and ...`.
+feet. Core 1.1.0+ (`WaCa.Needs("1.1.0", ...)`).
+
+## Any of the game's objects, spawned - `WaCa.Spawn(classPath, at[, yaw, scale])`
+
+The class by its object path (`/Game/.../BP_Thing.BP_Thing_C` - loaded when it isn't yet), set down on the ground
+below `at`, and spawned even where it overlaps something (the game's own spawn refuses a spot that collides). The actor,
+or nil. `WaCa.SpawnCat(look, at, yaw, scale)` is this plus a look (the look's text form - `WaCa.LookOf(cat)` of any
+cat). Core 1.1.0+.
+
+## The game's Interact prompt anywhere - `WaCa.InteractSpot(at, onInteract[, { reach = cm }])`
+
+The game's own "Interact" prompt at a place, and `onInteract(spot)` when your cat uses it there - within `reach`
+(250 cm by default) of the spot; with several in reach, the nearest. One press calls it once. Returns the spot -
+`spot:Remove()`, `spot:MoveTo(at)` - or nil. Use it for "show, not tell": the player does the thing there, a duty
+doesn't just tick on arrival. Core 1.1.0+.
+
+## A line over a cat's head - `WaCa.Say(catName, text[, seconds])` / `WaCa.SayOrShow(...)`
+
+The cat's own nameplate (the game's, or one `WaCa.Nameplate` made) shows the line under its name for `seconds`
+(default by length), then its own text again. True when shown; false when that cat has no plate up (too far, hidden).
+`WaCa.SayOrShow` does the same, and when there's no plate shows "<cat>: <line>" as an on-screen line instead.
+Core 1.1.0+.
+
+A cat of your own that answers when spoken to (tested on the VM, 2026-11-05):
+```lua
+local at = { X = ..., Y = ..., Z = ... }
+local donor = WaCa.Cats()[1].actor                               -- any cat, for a look to borrow
+local cat = WaCa.SpawnCat(WaCa.LookOf(donor), at, 180)
+WaCa.Nameplate(cat, "Driftpaw", WaCa.PlateRole("Nightheart"))    -- the game's own word for that rank
+WaCa.InteractSpot(at, function() WaCa.Say("Driftpaw", "You found me! I was watching the river.") end)
+```
 
 ## A nameplate on a cat you spawned - `WaCa.Nameplate(actor, name, role[, height])`
 

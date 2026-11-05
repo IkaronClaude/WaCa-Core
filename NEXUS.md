@@ -5,7 +5,7 @@
      resources. -->
 
 **Name:** WaCa Core
-**Version:** 1.0.0
+**Version:** 1.1.0
 **Category:** Modders Resources / Utilities
 **Summary (short description, max 350 characters):**
 The shared base of the WaCa mods (Keybinds & Mouse, Looks, Clan Life, Hunting, Graphics) and a modding API for
@@ -102,5 +102,9 @@ the game's own assets.
 - CaptainJackalope - UE4SS for Warrior Cats on Nexus.
 
 ## Changelog
+- 1.1.0 - for mod makers: WaCa.Spawn (any game object, set on the ground), WaCa.InteractSpot (the game's Interact
+  prompt anywhere, and what happens when it's used), WaCa.Say / SayOrShow (a line over a cat's head), WaCa.OnGround.
+  A Clan tab in the pause menu's Quest page; HUD goal lines can carry an icon. The mouse-look hook finds its place in
+  the game by what the code does, so a game update moves it less easily.
 - 1.0.0 - first release as its own mod (the shared part of the former all-in-one WaCa ModKit 0.7): cross-mod events,
   sticky topics, the shared speed of the cat, content files for text overrides.

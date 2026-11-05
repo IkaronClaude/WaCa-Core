@@ -10,7 +10,7 @@ local WaCa = {}
 -- the library's version (WaCa Core's - WaCaCore/Scripts/main.lua says the same). A mod built against a newer Core
 -- asks for it first:  if not WaCa.Needs("1.1.0", "WaCaMyMod") then return end  - an older Core then says so in the
 -- log instead of a missing function failing somewhere later
-WaCa.VERSION = "1.0.0"
+WaCa.VERSION = "1.1.0"
 local function versionParts(v)
     local out = {}
     for n in tostring(v or ""):gmatch("%d+") do out[#out + 1] = tonumber(n) end

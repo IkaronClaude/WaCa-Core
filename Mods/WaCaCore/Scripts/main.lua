@@ -3,7 +3,7 @@
 -- traces (config/dev.ini). The API itself is Mods/shared/WaCa/WaCa.lua (require("WaCa") in any mod) on top of the
 -- native half (dlls/main.dll). The other WaCa mods are separate UE4SS mods: Keybinds & Mouse, Looks, Clan Life,
 -- Hunting, Graphics - each one optional.
-local VERSION = "1.0.0"
+local VERSION = "1.1.0"
 local WaCa = require("WaCa")
 
 local modDir = debug.getinfo(1, "S").source:match("^@(.+)[/\\]Scripts[/\\]main%.lua$") or "."
