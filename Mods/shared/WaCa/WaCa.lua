@@ -618,7 +618,40 @@ end
 
 -- a simple ini reader: { [section] = { key = value } }, keys in file order in section.__order; the second result is
 -- the section names in file order (2026-11-02: a list of [Role.*] answers had no order to go by)
+-- THE PLAYER'S OWN SETTINGS: a mod's config\<name>.ini is laid over by config\<name>.user.ini when there is one - a
+-- file no release ships, so an update (which replaces <name>.ini) never touches what the player changed. A key there
+-- wins; "Key = -" removes the shipped one (the game's own then). tickets.md P2 "updates overwrite players' settings".
+local readIniPlain
 function WaCa.ReadIni(path)
+    local out, sections = readIniPlain(path)
+    local userPath = type(path) == "string" and not path:find("%.user%.ini$")
+        and path:find("[/\\]config[/\\][^/\\]+%.ini$") and (path:gsub("%.ini$", ".user.ini")) or nil
+    local user, userSections = nil, nil
+    if userPath then user, userSections = readIniPlain(userPath) end
+    if not user then return out, sections end
+    out = out or { [""] = { __order = {} } }
+    sections = sections or {}
+    for _, s in ipairs(userSections or {}) do
+        if not out[s] then out[s] = { __order = {} } sections[#sections + 1] = s end
+    end
+    for s, keys in pairs(user) do
+        if type(keys) == "table" then
+            out[s] = out[s] or { __order = {} }
+            for _, k in ipairs(keys.__order or {}) do
+                local v = keys[k]
+                if v == "-" then
+                    out[s][k] = nil
+                    for i = #out[s].__order, 1, -1 do if out[s].__order[i] == k then table.remove(out[s].__order, i) end end
+                else
+                    if out[s][k] == nil then table.insert(out[s].__order, k) end
+                    out[s][k] = v
+                end
+            end
+        end
+    end
+    return out, sections
+end
+readIniPlain = function(path)
     local f = io.open(path, "r")
     if not f then return nil end
     local out, section, sections = {}, "", {}

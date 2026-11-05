@@ -104,14 +104,17 @@ std::vector<std::wstring> Split(const std::wstring& s, wchar_t sep) {
 }
 
 // (re)reads keybinds.ini when it changed: a binding edit applies on the game's next rebuild of its bindings
-void LoadConfig(bool force = false) {
-    std::error_code ec;
-    auto t = std::filesystem::last_write_time(g_configPath, ec);
-    if (ec || (!force && t == g_configTime)) return;
-    g_configTime = t;
-    g_actions.clear();
-    g_axes.clear();
-    std::wifstream f(g_configPath);
+// THE PLAYER'S OWN KEYS: keybinds.user.ini (no release ships it, so an update never replaces it) is read after
+// keybinds.ini - a line there wins, "Command = -" removes the shipped one (the game's own keys then). The controls
+// screen writes there. Same rule as WaCa Core's Lua ReadIni.
+std::filesystem::file_time_type g_userTime{};
+std::wstring UserPath() {
+    auto dot = g_configPath.rfind(L".ini");
+    return dot == std::wstring::npos ? std::wstring() : g_configPath.substr(0, dot) + L".user.ini";
+}
+static void ReadBindings(const std::wstring& path) {
+    std::wifstream f(path);
+    if (!f) return;
     std::wstring line, section;
     while (std::getline(f, line)) {
         line = Trim(line);
@@ -120,19 +123,38 @@ void LoadConfig(bool force = false) {
         auto eq = line.find(L'=');
         if (eq == std::wstring::npos) continue;
         auto name = Trim(line.substr(0, eq));
-        auto keys = Split(line.substr(eq + 1), L',');
+        auto value = Trim(line.substr(eq + 1));
         if (section == L"Actions") {
-            g_actions[name] = keys;
+            if (value == L"-") { g_actions.erase(name); continue; }
+            g_actions[name] = Split(value, L',');
         } else if (section == L"Axes") {
+            if (value == L"-") { g_axes.erase(name); continue; }
             auto& list = g_axes[name];
-            for (auto& k : keys) {
+            list.clear();
+            for (auto& k : Split(value, L',')) {
                 auto colon = k.find(L':');
                 float scale = colon == std::wstring::npos ? 1.0f : std::stof(k.substr(colon + 1));
                 list.emplace_back(Trim(k.substr(0, colon)), scale);
             }
         }
     }
-    logx::Line(L"[input] keybinds.ini loaded: %zu action and %zu axis overrides", g_actions.size(), g_axes.size());
+}
+void LoadConfig(bool force = false) {
+    std::error_code ec, ecUser;
+    auto t = std::filesystem::last_write_time(g_configPath, ec);
+    auto u = std::filesystem::last_write_time(UserPath(), ecUser);
+    if (ecUser) u = std::filesystem::file_time_type{};
+    if (ec || (!force && t == g_configTime && u == g_userTime)) return;
+    g_configTime = t;
+    g_userTime = u;
+    g_actions.clear();
+    g_axes.clear();
+    ReadBindings(g_configPath);
+    size_t shipped = g_actions.size() + g_axes.size();
+    ReadBindings(UserPath());
+    logx::Line(L"[input] keybinds.ini loaded: %zu action and %zu axis overrides (%s)", g_actions.size(), g_axes.size(),
+               ecUser ? L"no keybinds.user.ini" : L"keybinds.user.ini laid over it");
+    (void)shipped;
 }
 
 std::wstring NameOf(const ue::FName& n) {
