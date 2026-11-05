@@ -17,6 +17,10 @@ is what the other WaCa mods need:
 Each is its own UE4SS mod: install the ones you want, plus this one.
 
 ## Install (players)
+**Updating to a new version:** the zip brings its own `config` files and replaces yours. Before you
+extract it, copy `Wrc\Binaries\Win64\ue4ss\Mods\WaCaCore\config` somewhere safe, and afterwards copy back the lines you had
+changed. Your saves, and each save's mod data next to them, are never touched.
+
 1. **UE4SS** - [UE4SS For Warrior Cats](https://www.nexusmods.com/warriorcatsclansoftheforest/mods/2) on Nexus Mods
    (UE4SS 3.0.1-1181-g83330635), installed as its page says. You only install it once for all mods.
 2. **WaCa Core**: extract the zip into the game's folder (`...\steamapps\common\Warrior Cats Clans of the Forest`), so
