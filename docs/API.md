@@ -283,6 +283,12 @@ All checked on the VM (2026-11-05):
 - `WaCa.UIRowKey(tbl, row)` - a menu row's key in one of the game's key tables ("Enter",
   "Gamepad_FaceButton_Bottom"), or nil.
 
+## Internal (may change)
+
+Used by WaCa Looks / Keybinds & Mouse for their own screens, not a stable API: `CatFingerprint`, `CatParts`,
+`PartNameOf`, `PartRole`, `PreviewCats`, `SetPartMask`, `SetPartTexture`, `GameMask`, `LoadTexture`, `MenuKeyTables`,
+`SetUIKeyIn`, `UIRows`. Ask (an issue on WaCa Core) before building on one - it can then be documented and kept.
+
 ## Rules of thumb
 - React to events; don't poll (no timers that check every second).
 - Read game state from the game, don't guess it; log what your mod decides, so a player's UE4SS.log tells the story.
