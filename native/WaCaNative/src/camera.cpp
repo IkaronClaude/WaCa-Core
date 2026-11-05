@@ -304,7 +304,9 @@ void Install() {
     if (!turn) {
         // (patch 1.1: the turn is inlined - the update reads the axes itself, call qword ptr [rax + 1000h] - and the
         // game has its own mouse look there. No function of its own = no place to add the mouse's yaw)
-        if (scan::BodyContains(update, "FF 90 00 10 00 00", 1))
+        // (a diagnostic, not an anchor - named, so tools/check_hooks.py doesn't take it for one: only this branch asks)
+        static constexpr const char* kReadsAxesItself = "FF 90 00 10 00 00";      // call qword ptr [rax + 1000h]
+        if (scan::BodyContains(update, kReadsAxesItself, 1))
             logx::Line(L"[camera] update at %p reads the camera axes itself (its turn is inlined in this build - the "
                        L"game's own mouse look, patch 1.1) - WaCa's mouse look OFF, the game's turns the camera", update);
         else

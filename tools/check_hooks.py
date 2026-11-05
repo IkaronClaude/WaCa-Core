@@ -288,15 +288,33 @@ for path in sorted(glob.glob(os.path.join(src_dir, '*.cpp'))):
 # UFunction + virtual-slot anchors (prey.cpp, hunt.cpp): the thunk must call the hooked vtable slot
 # (scan::BodyContains(thunk, "FF 90 <slot>", n)) - of the entries named <Func>, exactly one thunk holds it n times
 THUNK_BODY = re.compile(r'scan::BodyContains\(\w*[Tt]hunk, "([0-9A-Fa-f? ]+)", (\d+)\)')
+# hunt.cpp's helper: HookSlot(component, STR("/Script/...:Func"), "<its slot pattern>", ...) - each function its own
+HOOKSLOT = re.compile(r'HookSlot\(\s*\w+\s*,\s*STR\("/Script/[\w.]+:(\w+)"\)\s*,\s*"([0-9A-Fa-f? ]+)"')
 for path in sorted(glob.glob(os.path.join(src_dir, '*.cpp'))):
     file = os.path.basename(path)
     text = open(path, encoding='utf-8').read()
-    funcs, bodies = UFUNC.findall(text), THUNK_BODY.findall(text)
-    if not funcs or not bodies:
+    funcs_m, bodies_m = list(UFUNC.finditer(text)), list(THUNK_BODY.finditer(text))
+    slots = {m.group(1): (m.group(2), '1') for m in HOOKSLOT.finditer(text)}
+    if not funcs_m or (not bodies_m and not slots):
         continue
-    # several UFunctions in one file (areas.cpp): the n-th function goes with the n-th thunk pattern
-    paired = len(funcs) == len(bodies) and len(funcs) > 1
-    for fi, func in enumerate(funcs):
+    # WHICH PATTERN GOES WITH WHICH FUNCTION (2026-11-05: one file-wide pattern was tried on every function of the
+    # file - hunt.cpp's PounceReached / SequenceFinish and prey.cpp's OnEncounterOverlap 'ANCHORS DISAGREE' on every
+    # build while the runtime found them): a HookSlot call's own pattern; else, in a file with as many functions as
+    # patterns (areas.cpp), the n-th with the n-th; else the first pattern after the function's name and before the
+    # next one's; none = the runtime hooks it through its UFunction alone (reflection - nothing in bytes to check)
+    paired = len(funcs_m) == len(bodies_m) and len(funcs_m) > 1 and not slots
+    for fi, fm in enumerate(funcs_m):
+        func = fm.group(1)
+        if func in slots:
+            pats = [slots[func]]
+        elif paired:
+            pats = [bodies_m[fi].groups()]
+        else:
+            end = funcs_m[fi + 1].start() if fi + 1 < len(funcs_m) else len(text)
+            pats = [b.groups() for b in bodies_m if fm.start() < b.start() < end][:1]
+        if not pats:
+            print(f'{"REFLECTION":28} {func:34} hooked through its UFunction alone (no byte anchor to check)   [{file}]')
+            continue
         name_vas = {IB + a for a in find_ascii(func)}
         thunks = set()
         for va, size, ex in sections:
@@ -307,7 +325,7 @@ for path in sorted(glob.glob(os.path.join(src_dir, '*.cpp'))):
                     t = struct.unpack_from('<Q', image, off + 8)[0] - IB
                     if 0 < t < len(image):
                         thunks.add(t)
-        for pat, n in ([bodies[fi]] if paired else bodies):
+        for pat, n in pats:
             matching = [t for t in thunks if primary_range(t) is not None and body_count(t, pat) == int(n)]
             ok = len(matching) == 1
             chain_failed += not ok
