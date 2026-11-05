@@ -48,6 +48,29 @@ std::string KeyName(WPARAM vk) {
     }
     static const char* digits[] = {"Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"};
     if (vk >= '0' && vk <= '9') return digits[vk - '0'];
+    // (the number pad and the punctuation keys, by their Unreal names - they had none, so a mod key bound to
+    // NumPadOne or Semicolon never fired; QA helper exercise 2026-11-05)
+    static const char* numpad[] = {"NumPadZero", "NumPadOne", "NumPadTwo", "NumPadThree", "NumPadFour",
+                                   "NumPadFive", "NumPadSix", "NumPadSeven", "NumPadEight", "NumPadNine"};
+    if (vk >= VK_NUMPAD0 && vk <= VK_NUMPAD9) return numpad[vk - VK_NUMPAD0];
+    switch (vk) {
+        case VK_MULTIPLY: return "Multiply";
+        case VK_ADD: return "Add";
+        case VK_SUBTRACT: return "Subtract";
+        case VK_DECIMAL: return "Decimal";
+        case VK_DIVIDE: return "Divide";
+        case VK_OEM_1: return "Semicolon";
+        case VK_OEM_PLUS: return "Equals";
+        case VK_OEM_COMMA: return "Comma";
+        case VK_OEM_MINUS: return "Hyphen";
+        case VK_OEM_PERIOD: return "Period";
+        case VK_OEM_2: return "Slash";
+        case VK_OEM_3: return "Tilde";
+        case VK_OEM_4: return "LeftBracket";
+        case VK_OEM_5: return "Backslash";
+        case VK_OEM_6: return "RightBracket";
+        case VK_OEM_7: return "Apostrophe";
+    }
     if (vk >= 'A' && vk <= 'Z') return std::string(1, static_cast<char>(vk));
     if (vk >= VK_F1 && vk <= VK_F24) return "F" + std::to_string(vk - VK_F1 + 1);
     return "";
