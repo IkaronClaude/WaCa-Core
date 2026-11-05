@@ -267,6 +267,22 @@ them (`questlines.lua`) and every mod sends its lines again when Core reloads. W
 widget's geometry can't be read from Lua), `WaCa.MouseOver(widget)` -> is the mouse over it, and its area.
 `WaCa.Latest(topic)` -> the latest value of a sticky topic.
 
+## Smaller helpers
+
+All checked on the VM (2026-11-05):
+- `WaCa.SaveDir()` - the game's save folder (`%LOCALAPPDATA%\Wrc\Saved\SaveGames`); `WaCa.SlotFile` builds on it.
+- `WaCa.ReadJson(path)`, `WaCa.JsonDecode(s)`, `WaCa.JsonEncode(v)` - JSON <-> Lua tables (arrays 1-based, null = nil;
+  encode returns nil for what can't cross: a UObject, a function, a cycle). `{a=1, b={"x","y"}}` round-trips.
+- `WaCa.RoleText(role)` - a rank in the game's language ("Warrior", "Deputy" ... from the game's own texts), or nil.
+- `WaCa.NamePrefixText(prefixId)` / `WaCa.NameSuffixText(prefixId, suffixId)` - the parts of a cat name the game
+  builds from text ids ("STR_CAT_NAME12" -> "Pigeon", with "_HEART" -> "heart").
+- `WaCa.CatComponent(actor)` - an actor's cat look component (pawn, quest cat, cutscene cat, creator preview), or nil;
+  `WaCa.CustomData(cat)` - its look data (a live view), or nil - null-safe (prey and fight characters have none).
+- `WaCa.IsTextReady()` - true once the game has loaded its text (before that `WaCa.GetText` has nothing to give).
+- `WaCa.KeyIcon(key)` - the texture path of a key's on-screen icon ("E" -> the game's E key image), from DT_Keys.
+- `WaCa.UIRowKey(tbl, row)` - a menu row's key in one of the game's key tables ("Enter",
+  "Gamepad_FaceButton_Bottom"), or nil.
+
 ## Rules of thumb
 - React to events; don't poll (no timers that check every second).
 - Read game state from the game, don't guess it; log what your mod decides, so a player's UE4SS.log tells the story.
