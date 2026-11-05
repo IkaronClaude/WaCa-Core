@@ -32,6 +32,12 @@ WaCa.On("MyEvent", function(manager, id) end) -- a 5th argument hands one parame
 `WaCa.Watch(function, class, event, when)`: `when` = `"pre"` (before the function runs) or `"post"` (default).
 Events between mods: [EVENTS.md](EVENTS.md).
 
+## The ground below a point - `WaCa.OnGround(at)`
+
+`{X, Y, Z}` set down on the ground below `at` (a trace from 2 m above to 10 m below; no ground there = `at` unchanged) -
+what `WaCa.Spawn` / `WaCa.SpawnCat` do to their spot. For moving an actor somewhere it must stand: a cat's origin is its
+feet. Added after the 1.0.0 release: guard with `WaCa.OnGround and ...`.
+
 ## A nameplate on a cat you spawned - `WaCa.Nameplate(actor, name, role[, height])`
 
 The game floats a name and rank only over its own quest NPCs; a cat from `WaCa.SpawnCat` has none. `WaCa.Nameplate`

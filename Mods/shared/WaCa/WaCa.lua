@@ -1269,6 +1269,8 @@ local function onGround(at)
     end)
     return at
 end
+-- (public: the ground below a point - WaCa.OnGround({X,Y,Z}); Clan Life sets a cat down out of sight with it, 2026-11-05)
+function WaCa.OnGround(at) return onGround(at) end
 local function spawnClass(cls, at, yaw, scale)
     local gs = StaticFindObject("/Script/Engine.Default__GameplayStatics")
     local half = math.rad((yaw or 0) / 2)
