@@ -88,6 +88,18 @@ dialogue's id), `DialogueNext`. Any other game function: `WaCa.Watch` (see API.m
 | `WalkerWalkTo` (send it) | actor path, X, Y, Z - that cat walks there, stays a while, walks home |
 | `PlayScene` (send it) | step lines joined by `\|` (`Groups: Prey\|Wait: 3\|Release`) - a scene plays now |
 | `SetStoryVar` (send it) | name, value |
+| `ChoiceAnswered` | variable, answer number (a Choice: / Ask: the player answered) |
+| `GiveDuty` (send it) | duty kind (`Hunt`, `Water`, a pack's `HerbRound` ...) - your cat's task now |
+| `SkipDays` (send it) | days, or a `[Skip.<Name>]` of timeskip.ini - time passes on screen (plays with resting off too) |
+| `SetPackDay` (send it) | the pack's mod folder, day - a pack's own story moves to that day |
+| `StartActivity` (send it) | activity name, the cat's object path - that cat does it now (joinable) |
+| `KitsBorn` / `KitsGrown` | mate, names joined by "," / names joined by "," |
+| `Newcomer` / `HaveKits` (send them) | a clanmate's name [, `S:<role>`] / mate [, count] - kits are declined (logged) when off |
+| `NewcomerJoined` / `NewcomerCast` | name, like / role key, name |
+| `CatsTogether` | name, name, why (two clanmates sat together for a moment) |
+| `NpcHerbs` | the cat's name (a camp cat gathered herbs) |
+| `GatheringPartyBack` | - (the Gathering party is home) |
+| `FollowArrived` | group id (a travelling group reached its place) |
 | `clan.status` (topic, sticky) | `{ v = 1, day, third, stage, task, turnIn, title, where, activity, goal, got, need, done, text }` - the day at a glance (Clan Life shows it on the HUD) |
 
 A scene's `Emit: <event>` step sends `<event>` (with the scene's context table) - so a story written in ini files can
@@ -102,12 +114,23 @@ trigger your mod's code.
 | `cutscene` (topic, sticky) | `{ playing, name }` |
 | `SkipCutscene` (send it) | - the playing cutscene ends now (as at its End beat) |
 | `ShowLine` (send it) | text [, seconds] - a subtitle on screen outside a cutscene (default time: by its length) |
+| `CameraMoment` (send it) | shot, actor paths joined by ";", seconds [, blend] - a camera shot outside a cutscene |
 
 ### WaCa Hunting
 | Event | Arguments |
 | --- | --- |
 | `RoleFactors` | hunt, fish (the cat's specialisation) |
 | `SpeedFactor` | "wading", factor (sent to Core) |
+| `PreyScented` | the prey's object path, kind, distance (cm) - the wind carried your scent to it |
+| `SetWind` (send it) | degrees the wind blows FROM |
+
+### WaCa Keybinds & Mouse
+| Event | Arguments |
+| --- | --- |
+| `OpenControlsMenu` (send it) | - opens the rebinding screen |
+
+Internal (between a mod's own parts, may change): `HudPanelsAgain`, `QuestLinesAgain`, `WaCaCheckGameSync`,
+`WaCaDutiesForce` (a test's).
 
 ## Performance
 An event that crosses mods is one JSON encode in the sender and one decode per receiving mod - microseconds for the
